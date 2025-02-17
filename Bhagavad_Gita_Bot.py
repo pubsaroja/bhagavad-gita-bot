@@ -4,16 +4,14 @@ import requests
 from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, CallbackContext
 
-
-
 # Securely get the bot token from Railway environment variables
 TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 
 # GitHub Raw File URLs (Replace these with your actual GitHub links)
-HINDI_WITH_UVACHA_URL = "https://raw.githubusercontent.com/pubsaroja/bhagavad-gita-bot/refs/heads/main/BG%20Hindi%20with%20Uvacha.txt"
-TELUGU_WITH_UVACHA_URL = "https://raw.githubusercontent.com/pubsaroja/bhagavad-gita-bot/refs/heads/main/BG%20Telugu%20with%20Uvacha.txt"
-HINDI_WITHOUT_UVACHA_URL = "https://raw.githubusercontent.com/pubsaroja/bhagavad-gita-bot/refs/heads/main/BG%20Hindi%20without%20Uvacha.txt"
-TELUGU_WITHOUT_UVACHA_URL = "https://raw.githubusercontent.com/pubsaroja/bhagavad-gita-bot/refs/heads/main/BG%20Telugu%20Without%20Uvacha.txt"
+HINDI_WITH_UVACHA_URL = "https://raw.githubusercontent.com/pubsaroja/bhagavad-gita-bot/main/BG%20Hindi%20with%20Uvacha.txt"
+TELUGU_WITH_UVACHA_URL = "https://raw.githubusercontent.com/pubsaroja/bhagavad-gita-bot/main/BG%20Telugu%20with%20Uvacha.txt"
+HINDI_WITHOUT_UVACHA_URL = "https://raw.githubusercontent.com/pubsaroja/bhagavad-gita-bot/main/BG%20Hindi%20without%20Uvacha.txt"
+TELUGU_WITHOUT_UVACHA_URL = "https://raw.githubusercontent.com/pubsaroja/bhagavad-gita-bot/main/BG%20Telugu%20Without%20Uvacha.txt"
 
 # Dictionary to store session data (to prevent repetition)
 session_data = {}
@@ -90,7 +88,6 @@ def get_random_shloka(chapter: str, user_id: int):
         shloka_hindi = shlokas_hindi[chapter][shloka_index].split()
         shloka_telugu = shlokas_telugu[chapter][shloka_index].split()
         
-        # ✅ FIX: Ensure the key exists before accessing
         if chapter not in full_shlokas_hindi or shloka_index >= len(full_shlokas_hindi[chapter]):
             return "❌ No shloka found for this chapter."
 
@@ -111,14 +108,7 @@ def get_last_shloka(user_id: int):
         return f"📜 **Full Shloka (Hindi):** {shloka_hindi}\n🕉 **Telugu:** {shloka_telugu}"
     return "❌ No previous shloka found. Please request one first!"
 
-def start(update: Update, context: CallbackContext) -> None:
-    await update.message.reply_text(
-        "🔹 Welcome! Send a chapter number (0-18) for a random shloka quarter.\n"
-        "🔹 Send 's' to see the full last shloka.\n"
-        "🔹 Shlokas won't repeat in a single session!"
-    )
-
-def handle_message(update: Update, context: CallbackContext) -> None:
+async def handle_message(update: Update, context: CallbackContext) -> None:
     user_text = update.message.text.strip()
     user_id = update.message.chat_id
 
@@ -129,16 +119,15 @@ def handle_message(update: Update, context: CallbackContext) -> None:
     else:
         response = "❌ Please enter a valid chapter number (0-18) or 's' for the last shloka."
 
-    update.message.reply_text(response)
+    await update.message.reply_text(response)
 
 def main():
     app = Application.builder().token(TOKEN).build()
-
+    
     app.add_handler(CommandHandler("start", start))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
-
+    
     app.run_polling()
-
 
 if __name__ == "__main__":
     main()
