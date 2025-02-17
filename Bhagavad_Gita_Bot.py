@@ -109,7 +109,7 @@ def get_last_shloka(user_id: int):
     return "❌ No previous shloka found. Please request one first!"
 
 def start(update: Update, context: CallbackContext) -> None:
-    update.message.reply_text(
+    await update.message.reply_text(
         "🔹 Welcome! Send a chapter number (0-18) for a random shloka quarter.\n"
         "🔹 Send 's' to see the full last shloka.\n"
         "🔹 Shlokas won't repeat in a single session!"
