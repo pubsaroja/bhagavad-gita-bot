@@ -121,12 +121,22 @@ async def handle_message(update: Update, context: CallbackContext) -> None:
 
     await update.message.reply_text(response)
 
+# Define the start function
+async def start(update: Update, context: CallbackContext):
+    """Sends a welcome message when the user starts the bot."""
+    await update.message.reply_text("Welcome to the Bhagavad Gita Bot! Type a chapter number (0-18) to get a shloka, or 's' to get the last one.")
+
 def main():
+    # Initialize the bot with the token
     app = Application.builder().token(TOKEN).build()
     
+    # Add the /start command handler
     app.add_handler(CommandHandler("start", start))
+    
+    # Add the message handler for user input
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
     
+    # Start the bot
     app.run_polling()
 
 if __name__ == "__main__":
