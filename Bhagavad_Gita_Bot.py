@@ -2,7 +2,8 @@ import os
 import random
 import requests
 from telegram import Update
-from telegram.ext import Updater, CommandHandler, MessageHandler, Filters, CallbackContext
+from telegram.ext import Application, CommandHandler, MessageHandler, filters, CallbackContext
+
 
 # Securely get the bot token from Railway environment variables
 TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
