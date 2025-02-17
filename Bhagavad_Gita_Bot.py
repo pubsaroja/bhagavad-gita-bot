@@ -106,14 +106,13 @@ def handle_message(update: Update, context: CallbackContext) -> None:
     update.message.reply_text(response)
 
 def main():
-    updater = Updater(TOKEN)
-    dp = updater.dispatcher
+    app = Application.builder().token(TOKEN).build()
 
-    dp.add_handler(CommandHandler("start", start))
-    dp.add_handler(MessageHandler(Filters.text & ~Filters.command, handle_message))
+    app.add_handler(CommandHandler("start", start))
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
-    updater.start_polling()
-    updater.idle()
+    app.run_polling()
+
 
 if __name__ == "__main__":
     main()
