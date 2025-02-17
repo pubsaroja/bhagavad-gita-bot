@@ -22,19 +22,41 @@ def load_shlokas_from_github(url):
     """Fetches and organizes shlokas from GitHub text files."""
     response = requests.get(url)
     shlokas = {}
-    
+
     if response.status_code == 200:
         lines = response.text.split("\n")
-        current_chapter = None
-        
+        current_shloka = ""
+        current_chapter_verse = None
+
         for line in lines:
             line = line.strip()
-            if line and "." in line:
-                chapter, text = line.split("\t", 1)
-                chapter = chapter.split(".")[0]  # Extract chapter number
-                if chapter not in shlokas:
-                    shlokas[chapter] = []
-                shlokas[chapter].append(text)
+            if not line:  # Skip empty lines
+                continue
+
+            parts = line.split("\t", 1)
+            if len(parts) == 2:
+                full_number, text = parts
+                chapter_verse = ".".join(full_number.split(".")[:2])  # Extract "chapter.verse"
+
+                if chapter_verse not in shlokas:
+                    shlokas[chapter_verse] = []
+
+                # Append to existing shloka if it's the same chapter_verse
+                if current_chapter_verse == chapter_verse:
+                    current_shloka += " " + text
+                else:
+                    if current_chapter_verse and current_shloka:
+                        shlokas[current_chapter_verse].append(current_shloka.strip())
+
+                    current_chapter_verse = chapter_verse
+                    current_shloka = text
+            else:
+                print(f"Skipping invalid line: {line}")
+
+        # Save last shloka after finishing the loop
+        if current_chapter_verse and current_shloka:
+            shlokas[current_chapter_verse].append(current_shloka.strip())
+
     return shlokas
 
 # Load shlokas from GitHub
