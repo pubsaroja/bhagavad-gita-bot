@@ -73,6 +73,10 @@ def get_random_shloka(chapter: str, user_id: int):
     if chapter == "0":
         chapter = random.choice(list(shlokas_hindi.keys()))
 
+    # Logging the input and available chapters for debugging
+    print(f"Received chapter input: {chapter}")
+    print(f"Available chapters: {list(shlokas_hindi.keys())}")
+
     # Ensure the chapter is a valid chapter number
     chapter = chapter.strip()
     if chapter not in shlokas_hindi:
