@@ -69,16 +69,15 @@ def get_random_shloka(chapter: str, user_id: int):
     """Returns the first quarter of a unique random shloka in Hindi & Telugu."""
     global session_data
     
-    # Initialize session if user is new
     if user_id not in session_data:
         session_data[user_id] = {"used_shlokas": set(), "last_shloka": None}
 
-    if chapter == "0":  # Pick from any chapter
+    if chapter == "0":
         chapter = random.choice(list(shlokas_hindi.keys()))
 
     if chapter in shlokas_hindi:
         available_shlokas = [
-            i for i in range(len(shlokas_hindi[chapter])) 
+            i for i in range(len(shlokas_hindi[chapter]))
             if i not in session_data[user_id]["used_shlokas"]
         ]
         
@@ -91,7 +90,10 @@ def get_random_shloka(chapter: str, user_id: int):
         shloka_hindi = shlokas_hindi[chapter][shloka_index].split()
         shloka_telugu = shlokas_telugu[chapter][shloka_index].split()
         
-        # Store full shloka for retrieval when "s" is entered
+        # ✅ FIX: Ensure the key exists before accessing
+        if chapter not in full_shlokas_hindi or shloka_index >= len(full_shlokas_hindi[chapter]):
+            return "❌ No shloka found for this chapter."
+
         session_data[user_id]["last_shloka"] = (
             full_shlokas_hindi[chapter][shloka_index],
             full_shlokas_telugu[chapter][shloka_index]
@@ -100,6 +102,7 @@ def get_random_shloka(chapter: str, user_id: int):
         return f"📖 **Hindi:** {shloka_hindi[0]}\n🕉 **Telugu:** {shloka_telugu[0]}"
     
     return "❌ Invalid chapter number. Please enter a number between 0-18."
+
 
 def get_last_shloka(user_id: int):
     """Returns the full last displayed shloka in Hindi & Telugu."""
