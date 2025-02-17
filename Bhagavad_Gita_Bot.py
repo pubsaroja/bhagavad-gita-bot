@@ -66,40 +66,41 @@ full_shlokas_telugu = load_shlokas_from_github(TELUGU_WITH_UVACHA_URL)
 def get_random_shloka(chapter: str, user_id: int):
     """Returns the first quarter of a unique random shloka in Hindi & Telugu."""
     global session_data
-    
+
     if user_id not in session_data:
         session_data[user_id] = {"used_shlokas": set(), "last_shloka": None}
 
     if chapter == "0":
         chapter = random.choice(list(shlokas_hindi.keys()))
 
-    if chapter in shlokas_hindi:
-        available_shlokas = [
-            i for i in range(len(shlokas_hindi[chapter]))
-            if i not in session_data[user_id]["used_shlokas"]
-        ]
-        
-        if not available_shlokas:
-            return "✅ All shlokas from this chapter have been shown in this session!"
+    # Ensure the chapter is a valid chapter number
+    chapter = chapter.strip()
+    if chapter not in shlokas_hindi:
+        return "❌ Invalid chapter number. Please enter a number between 0-18."
 
-        shloka_index = random.choice(available_shlokas)
-        session_data[user_id]["used_shlokas"].add(shloka_index)
+    available_shlokas = [
+        i for i in range(len(shlokas_hindi[chapter]))
+        if i not in session_data[user_id]["used_shlokas"]
+    ]
 
-        shloka_hindi = shlokas_hindi[chapter][shloka_index].split()
-        shloka_telugu = shlokas_telugu[chapter][shloka_index].split()
-        
-        if chapter not in full_shlokas_hindi or shloka_index >= len(full_shlokas_hindi[chapter]):
-            return "❌ No shloka found for this chapter."
+    if not available_shlokas:
+        return "✅ All shlokas from this chapter have been shown in this session!"
 
-        session_data[user_id]["last_shloka"] = (
-            full_shlokas_hindi[chapter][shloka_index],
-            full_shlokas_telugu[chapter][shloka_index]
-        )
+    shloka_index = random.choice(available_shlokas)
+    session_data[user_id]["used_shlokas"].add(shloka_index)
 
-        return f"📖 **Hindi:** {shloka_hindi[0]}\n🕉 **Telugu:** {shloka_telugu[0]}"
-    
-    return "❌ Invalid chapter number. Please enter a number between 0-18."
+    shloka_hindi = shlokas_hindi[chapter][shloka_index].split()
+    shloka_telugu = shlokas_telugu[chapter][shloka_index].split()
 
+    if chapter not in full_shlokas_hindi or shloka_index >= len(full_shlokas_hindi[chapter]):
+        return "❌ No shloka found for this chapter."
+
+    session_data[user_id]["last_shloka"] = (
+        full_shlokas_hindi[chapter][shloka_index],
+        full_shlokas_telugu[chapter][shloka_index]
+    )
+
+    return f"📖 **Hindi:** {shloka_hindi[0]}\n🕉 **Telugu:** {shloka_telugu[0]}"
 
 def get_last_shloka(user_id: int):
     """Returns the full last displayed shloka in Hindi & Telugu."""
@@ -129,13 +130,13 @@ async def start(update: Update, context: CallbackContext):
 def main():
     # Initialize the bot with the token
     app = Application.builder().token(TOKEN).build()
-    
+
     # Add the /start command handler
     app.add_handler(CommandHandler("start", start))
-    
+
     # Add the message handler for user input
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
-    
+
     # Start the bot
     app.run_polling()
 
