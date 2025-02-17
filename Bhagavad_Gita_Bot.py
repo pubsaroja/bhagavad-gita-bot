@@ -10,10 +10,10 @@ from telegram.ext import Application, CommandHandler, MessageHandler, filters, C
 TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 
 # GitHub Raw File URLs (Replace these with your actual GitHub links)
-HINDI_WITH_UVACHA_URL = "https://github.com/pubsaroja/bhagavad-gita-bot/blob/main/BG%20Hindi%20with%20Uvacha.txt"
-TELUGU_WITH_UVACHA_URL = "https://github.com/pubsaroja/bhagavad-gita-bot/blob/main/BG%20Telugu%20with%20Uvacha.txt"
-HINDI_WITHOUT_UVACHA_URL = "https://github.com/pubsaroja/bhagavad-gita-bot/blob/main/BG%20Hindi%20without%20Uvacha.txt"
-TELUGU_WITHOUT_UVACHA_URL = "https://github.com/pubsaroja/bhagavad-gita-bot/blob/main/BG%20Telugu%20Without%20Uvacha.txt"
+HINDI_WITH_UVACHA_URL = "https://raw.githubusercontent.com/pubsaroja/bhagavad-gita-bot/refs/heads/main/BG%20Hindi%20with%20Uvacha.txt"
+TELUGU_WITH_UVACHA_URL = "https://raw.githubusercontent.com/pubsaroja/bhagavad-gita-bot/refs/heads/main/BG%20Telugu%20with%20Uvacha.txt"
+HINDI_WITHOUT_UVACHA_URL = "https://raw.githubusercontent.com/pubsaroja/bhagavad-gita-bot/refs/heads/main/BG%20Hindi%20without%20Uvacha.txt"
+TELUGU_WITHOUT_UVACHA_URL = "https://raw.githubusercontent.com/pubsaroja/bhagavad-gita-bot/refs/heads/main/BG%20Telugu%20Without%20Uvacha.txt"
 
 # Dictionary to store session data (to prevent repetition)
 session_data = {}
