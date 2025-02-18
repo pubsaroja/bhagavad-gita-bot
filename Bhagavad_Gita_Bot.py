@@ -24,9 +24,7 @@ def load_shlokas_from_github(url):
 
     shlokas = {}
     lines = response.text.split("\n")
-    current_shloka = ""
-    current_chapter = None
-
+    
     for line in lines:
         line = line.strip()
         if not line:
@@ -39,18 +37,8 @@ def load_shlokas_from_github(url):
 
             if chapter not in shlokas:
                 shlokas[chapter] = []
-
-            if current_chapter == chapter:
-                current_shloka += " " + text
-            else:
-                if current_chapter and current_shloka:
-                    shlokas[current_chapter].append(current_shloka.strip())
-
-                current_chapter = chapter
-                current_shloka = text
-
-    if current_chapter and current_shloka:
-        shlokas[current_chapter].append(current_shloka.strip())
+            
+            shlokas[chapter].append(text.strip())
 
     return shlokas
 
@@ -60,25 +48,20 @@ full_shlokas_hindi = load_shlokas_from_github(HINDI_WITH_UVACHA_URL)
 full_shlokas_telugu = load_shlokas_from_github(TELUGU_WITH_UVACHA_URL)
 
 def get_random_shloka(chapter: str, user_id: int):
-    """Returns the first quarter of a unique random shloka in Hindi & Telugu."""
+    """Returns a unique random shloka (first quarter) in Hindi & Telugu."""
     global session_data
 
-    # Ensure session storage exists
     if user_id not in session_data:
         session_data[user_id] = {"used_shlokas": set(), "last_shloka": None}
 
-    # Convert chapter to string (to match dictionary keys)
     chapter = str(chapter).strip()
 
-    # Select a random chapter if user enters "0"
     if chapter == "0":
         chapter = random.choice(list(shlokas_hindi.keys()))
 
-    # Validate chapter number
     if chapter not in shlokas_hindi:
-        return "❌ Invalid chapter number. Please enter a number between 0-18."
+        return "❌ Invalid chapter number. Please enter a number between 1-18 or '0' for a random chapter."
 
-    # Find available shlokas that haven't been used
     available_shlokas = [
         i for i in range(len(shlokas_hindi[chapter]))
         if i not in session_data[user_id]["used_shlokas"]
@@ -87,28 +70,21 @@ def get_random_shloka(chapter: str, user_id: int):
     if not available_shlokas:
         return f"✅ All shlokas from chapter {chapter} have been shown in this session!"
 
-    # Select a random unused shloka
     shloka_index = random.choice(available_shlokas)
-    session_data[user_id]["used_shlokas"].add(shloka_index)  # Mark as used
+    session_data[user_id]["used_shlokas"].add(shloka_index)
 
     shloka_hindi = shlokas_hindi[chapter][shloka_index]
     shloka_telugu = shlokas_telugu[chapter][shloka_index]
 
-    # Return only the first quarter of the shloka
-    quarter_shloka_hindi = shloka_hindi[:len(shloka_hindi)//4]
-    quarter_shloka_telugu = shloka_telugu[:len(shloka_telugu)//4]
-
-    # Ensure full shloka exists before storing
     if chapter in full_shlokas_hindi and shloka_index < len(full_shlokas_hindi[chapter]):
         session_data[user_id]["last_shloka"] = (
             full_shlokas_hindi[chapter][shloka_index],
             full_shlokas_telugu[chapter][shloka_index]
         )
     else:
-        session_data[user_id]["last_shloka"] = None  # Clear if not found
+        session_data[user_id]["last_shloka"] = None
 
-    return f"📖 **Hindi:** {quarter_shloka_hindi}\n🕉 **Telugu:** {quarter_shloka_telugu}"
-
+    return f"📖 **Hindi:** {shloka_hindi}\n🕉 **Telugu:** {shloka_telugu}"
 
 def get_last_shloka(user_id: int):
     """Returns the full last displayed shloka in Hindi & Telugu."""
@@ -119,7 +95,6 @@ def get_last_shloka(user_id: int):
 
 import logging
 
-# Set up logging to track message length
 logging.basicConfig(level=logging.INFO)
 
 async def handle_message(update: Update, context: CallbackContext) -> None:
@@ -134,15 +109,6 @@ async def handle_message(update: Update, context: CallbackContext) -> None:
         response = "❌ Invalid input. Please enter a chapter number (1-18), '0' for any chapter, or 's' for the last shloka."
 
     if response:
-        max_message_length = 4096
-        logging.info(f"Message length: {len(response)}")
-
-        # Split the message if it's too long
-        while len(response) > max_message_length:
-            await update.message.reply_text(response[:max_message_length])
-            response = response[max_message_length:]
-        
-        # Send the remaining message chunk
         await update.message.reply_text(response)
 
 async def start(update: Update, context: CallbackContext):
