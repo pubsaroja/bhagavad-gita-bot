@@ -1,79 +1,64 @@
 import os
 import random
-import logging
-import requests  # Import requests library for downloading file content from URLs
+import requests
 from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, CallbackContext
 
-# Load Bhagavad Gita shlokas from GitHub files
-shlokas_hindi = {}
-shlokas_telugu = {}
-full_shlokas_hindi = {}
-full_shlokas_telugu = {}
+TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
+WEBHOOK_URL = os.getenv("WEBHOOK_URL")
 
-# Session tracking to prevent repetition in one session
+HINDI_WITH_UVACHA_URL = https://raw.githubusercontent.com/pubsaroja/bhagavad-gita-bot/refs/heads/main/BG%20Hindi%20with%20Uvacha.txt"
+TELUGU_WITH_UVACHA_URL = "https://raw.githubusercontent.com/pubsaroja/bhagavad-gita-bot/refs/heads/main/BG%20Telugu%20with%20Uvacha.txt"
+HINDI_WITHOUT_UVACHA_URL = "https://raw.githubusercontent.com/pubsaroja/bhagavad-gita-bot/refs/heads/main/BG%20Hindi%20without%20Uvacha.txt"
+TELUGU_WITHOUT_UVACHA_URL = "https://raw.githubusercontent.com/pubsaroja/bhagavad-gita-bot/refs/heads/main/BG%20Telugu%20Without%20Uvacha.txt"
+
 session_data = {}
 
-# Function to download the file content from a URL
-def download_file(url):
-    """Downloads the file content from the URL."""
+def load_shlokas_from_github(url):
+    """Fetches and organizes shlokas from GitHub text files by chapter."""
     response = requests.get(url)
-    if response.status_code == 200:
-        return response.text
-    else:
-        print(f"Error downloading file from {url}, Status code: {response.status_code}")
-        return None
+    
+    if response.status_code != 200:
+        print(f"⚠️ Error fetching data from {url} (Status Code: {response.status_code})")
+        return {}
 
-# Function to load shlokas from a URL or a local file
-def load_shlokas(filename_or_url):
-    chapters = {}
-    content = None
+    shlokas = {}
+    lines = response.text.split("\n")
+    current_shloka = ""
+    current_chapter = None
 
-    # If it's a URL, download the content
-    if filename_or_url.startswith("http"):
-        content = download_file(filename_or_url)
-    else:
-        # If it's a local file, open it
-        try:
-            with open(filename_or_url, "r", encoding="utf-8") as file:
-                content = file.read()
-        except FileNotFoundError:
-            print(f"File {filename_or_url} not found locally.")
-            return {}
-
-    if content is None:
-        return chapters  # Return empty chapters if file content couldn't be loaded
-
-    # Process the content to extract chapters and shlokas
-    chapter_data = []
-    chapter_num = None
-    for line in content.splitlines():
+    for line in lines:
         line = line.strip()
-        if line.isdigit():  # Chapter number
-            if chapter_num is not None:
-                chapters[str(chapter_num)] = chapter_data
-            chapter_num = int(line)
-            chapter_data = []
-        elif line:
-            chapter_data.append(line)
-    if chapter_num is not None:
-        chapters[str(chapter_num)] = chapter_data
+        if not line:
+            continue
 
-    return chapters
+        parts = line.split("\t", 1)
+        if len(parts) == 2:
+            full_number, text = parts
+            chapter = full_number.split(".")[0]
 
-# Load shlokas from GitHub files
-shlokas_hindi = load_shlokas("https://raw.githubusercontent.com/pubsaroja/bhagavad-gita-bot/refs/heads/main/BG%20Hindi%20without%20Uvacha.txt")
-shlokas_telugu = load_shlokas("https://raw.githubusercontent.com/pubsaroja/bhagavad-gita-bot/refs/heads/main/BG%20Telugu%20Without%20Uvacha.txt")
-full_shlokas_hindi = load_shlokas("https://raw.githubusercontent.com/pubsaroja/bhagavad-gita-bot/refs/heads/main/BG%20Hindi%20with%20Uvacha.txt")
-full_shlokas_telugu = load_shlokas("https://raw.githubusercontent.com/pubsaroja/bhagavad-gita-bot/refs/heads/main/BG%20Telugu%20with%20Uvacha.txt")
+            if chapter not in shlokas:
+                shlokas[chapter] = []
 
-# Function to extract the first quarter of the shloka
-def get_first_quarter(text):
-    words = text.split()
-    quarter_length = max(1, len(words) // 4)  # Ensure at least 1 word
-    return " ".join(words[:quarter_length])  # Extract first 25% words
+            if current_chapter == chapter:
+                current_shloka += " " + text
+            else:
+                if current_chapter and current_shloka:
+                    shlokas[current_chapter].append(current_shloka.strip())
 
-# Function to fetch a random shloka from the specified chapter
+                current_chapter = chapter
+                current_shloka = text
+
+    if current_chapter and current_shloka:
+        shlokas[current_chapter].append(current_shloka.strip())
+
+    return shlokas
+
+shlokas_hindi = load_shlokas_from_github(HINDI_WITHOUT_UVACHA_URL)
+shlokas_telugu = load_shlokas_from_github(TELUGU_WITHOUT_UVACHA_URL)
+full_shlokas_hindi = load_shlokas_from_github(HINDI_WITH_UVACHA_URL)
+full_shlokas_telugu = load_shlokas_from_github(TELUGU_WITH_UVACHA_URL)
+
 def get_random_shloka(chapter: str, user_id: int):
     """Returns the first quarter of a unique random shloka in Hindi & Telugu."""
     global session_data
@@ -107,6 +92,7 @@ def get_random_shloka(chapter: str, user_id: int):
     shloka_index = random.choice(available_shlokas)
     used_shlokas.add(shloka_index)
 
+    # Ensure valid indexing
     if shloka_index >= len(shlokas_hindi[chapter]) or shloka_index >= len(shlokas_telugu[chapter]):
         return "❌ Error: Invalid shloka index."
 
@@ -116,66 +102,64 @@ def get_random_shloka(chapter: str, user_id: int):
     if not shloka_hindi or not shloka_telugu:
         return "❌ Error: Empty shloka text."
 
-    # ✅ Extract the first quarter of the shloka
-    first_quarter_hindi = get_first_quarter(shloka_hindi)
-    first_quarter_telugu = get_first_quarter(shloka_telugu)
-
-    # Save the full shloka for later retrieval
     session_data[user_id]["last_shloka"] = (
         full_shlokas_hindi[chapter][shloka_index],
         full_shlokas_telugu[chapter][shloka_index]
     )
 
-    return f"📖 **Hindi:** {first_quarter_hindi}\n🕉 **Telugu:** {first_quarter_telugu}"
+    return f"📖 **Hindi:** {shloka_hindi.split()[0]}\n🕉 **Telugu:** {shloka_telugu.split()[0]}"
 
-# Function to fetch the last full shloka
 def get_last_shloka(user_id: int):
-    """Returns the last full shloka in Hindi & Telugu."""
+    """Returns the full last displayed shloka in Hindi & Telugu."""
     if user_id in session_data and session_data[user_id]["last_shloka"]:
-        hindi_shloka, telugu_shloka = session_data[user_id]["last_shloka"]
-        return f"📖 **Full Hindi:** {hindi_shloka}\n🕉 **Full Telugu:** {telugu_shloka}"
-    return "❌ No previous shloka found. Try entering a chapter number first!"
+        shloka_hindi, shloka_telugu = session_data[user_id]["last_shloka"]
 
-# Telegram bot handlers
-async def start(update: Update, context: CallbackContext) -> None:
-    await update.message.reply_text(
-        "🕉 **Welcome to the Bhagavad Gita Bot!**\n\n"
-        "📜 Enter a chapter number (1-18) to get a random shloka.\n"
-        "🔄 Enter '0' to get a random shloka from any chapter.\n"
-        "📖 Enter 's' to see the last full shloka.\n"
-        "🙏 Hare Krishna! 🙏"
-    )
+        if not shloka_hindi or not shloka_telugu:
+            return ["❌ Error: Last shloka is empty."]
+
+        return [f"📜 **Full Shloka (Hindi):** {shloka_hindi}\n🕉 **Telugu:** {shloka_telugu}"]
+
+    return ["❌ No previous shloka found. Please request one first!"]
 
 async def handle_message(update: Update, context: CallbackContext) -> None:
+    """Handles user input."""
     user_text = update.message.text.strip()
-    user_id = update.message.from_user.id
+    user_id = update.message.chat_id
 
     if user_text.isdigit():
         response = get_random_shloka(user_text, user_id)
     elif user_text.lower() == "s":
         response = get_last_shloka(user_id)
     else:
-        response = "❌ Invalid input. Please enter a chapter number (1-18), '0' for any chapter, or 's' for the last shloka."
+        response = ["❌ Please enter a valid chapter number (1-18) or 's' for the last shloka."]
 
-    if response:
-        await update.message.reply_text(response)
+    # Ensure response is not empty
+    if isinstance(response, list):
+        for msg in response:
+            if msg.strip():  # Prevent empty messages
+                await update.message.reply_text(msg)
+    else:
+        if response.strip():
+            await update.message.reply_text(response)
 
-# Logging setup
-logging.basicConfig(
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO
-)
-
-# Telegram Bot Setup
-TOKEN = os.getenv("BOT_TOKEN")  # Make sure your token is stored securely in environment variables
+async def start(update: Update, context: CallbackContext):
+    """Sends a welcome message when the user starts the bot."""
+    await update.message.reply_text("Welcome to the Bhagavad Gita Bot! Type a chapter number (1-18) to get a shloka, or 's' to get the last one.")
 
 def main():
-    """Start the bot."""
-    application = Application.builder().token(TOKEN).build()
+    """Main function to run the bot with webhook on Railway."""
+    app = Application.builder().token(TOKEN).build()
 
-    application.add_handler(CommandHandler("start", start))
-    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+    app.add_handler(CommandHandler("start", start))
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
-    application.run_polling()
+    PORT = int(os.getenv("PORT", 8443))
+    app.run_webhook(
+        listen="0.0.0.0",
+        port=PORT,
+        url_path=TOKEN,
+        webhook_url=f"{WEBHOOK_URL}/{TOKEN}"
+    )
 
 if __name__ == "__main__":
     main()
