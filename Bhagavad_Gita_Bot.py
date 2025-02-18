@@ -107,15 +107,8 @@ def get_random_shloka(chapter: str, user_id: int):
         full_shlokas_telugu[chapter][shloka_index]
     )
 
-    # Get the first quarter of the shloka (split by space)
-    hindi_words = shloka_hindi.split()
-    telugu_words = shloka_telugu.split()
-
-    # Get the first quarter (for splitting the shloka into 4 parts)
-    first_quarter_hindi = " ".join(hindi_words[:len(hindi_words)//4])
-    first_quarter_telugu = " ".join(telugu_words[:len(telugu_words)//4])
-
-    return f"📖 **Hindi (Quarter 1):** {first_quarter_hindi}\n🕉 **Telugu (Quarter 1):** {first_quarter_telugu}"
+    # Return first quarter of the shloka
+    return f"📖 **Hindi (Quarter 1):** {shloka_hindi.split()[0]}\n🕉 **Telugu (Quarter 1):** {shloka_telugu.split()[0]}"
 
 def get_last_shloka(user_id: int):
     """Returns the full last displayed shloka in Hindi & Telugu."""
