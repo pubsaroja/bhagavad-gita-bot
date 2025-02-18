@@ -15,7 +15,6 @@ TELUGU_WITHOUT_UVACHA_URL = "https://raw.githubusercontent.com/pubsaroja/bhagava
 session_data = {}
 
 def load_shlokas_from_github(url):
-    """Fetches and organizes shlokas from GitHub text files by chapter."""
     response = requests.get(url)
     
     if response.status_code != 200:
@@ -33,12 +32,12 @@ def load_shlokas_from_github(url):
         parts = line.split("\t", 1)
         if len(parts) == 2:
             full_number, text = parts
-            chapter = full_number.split(".")[0]
+            chapter, verse = full_number.split(".")
 
             if chapter not in shlokas:
                 shlokas[chapter] = []
 
-            shlokas[chapter].append(text)
+            shlokas[chapter].append((verse, text))
     
     return shlokas
 
@@ -48,7 +47,6 @@ full_shlokas_hindi = load_shlokas_from_github(HINDI_WITH_UVACHA_URL)
 full_shlokas_telugu = load_shlokas_from_github(TELUGU_WITH_UVACHA_URL)
 
 def get_random_shloka(chapter: str, user_id: int):
-    """Returns the first quarter of a unique random shloka in Hindi & Telugu."""
     global session_data
 
     if user_id not in session_data:
@@ -75,19 +73,18 @@ def get_random_shloka(chapter: str, user_id: int):
     session_data[user_id]["last_shloka_index"] = shloka_index
     session_data[user_id]["last_chapter"] = chapter
 
-    shloka_hindi = shlokas_hindi[chapter][shloka_index]
-    shloka_telugu = shlokas_telugu[chapter][shloka_index]
+    verse, shloka_hindi = shlokas_hindi[chapter][shloka_index]
+    _, shloka_telugu = shlokas_telugu[chapter][shloka_index]
 
-    return f"📖 **Hindi:** {shloka_hindi}\n🕉 **Telugu:** {shloka_telugu}"
+    return f"📖 **{chapter}.{verse}**\n🕉 **Hindi:** {shloka_hindi}\n🕉 **Telugu:** {shloka_telugu}"
 
 def get_last_shloka(user_id: int):
-    """Returns the full last displayed shloka in Hindi & Telugu."""
     if user_id in session_data and session_data[user_id]["last_shloka_index"] is not None:
         chapter = session_data[user_id]["last_chapter"]
         shloka_index = session_data[user_id]["last_shloka_index"]
-        shloka_hindi = full_shlokas_hindi[chapter][shloka_index]
-        shloka_telugu = full_shlokas_telugu[chapter][shloka_index]
-        return f"📜 **Full Shloka (Hindi):** {shloka_hindi}\n🕉 **Telugu:** {shloka_telugu}"
+        verse, shloka_hindi = full_shlokas_hindi[chapter][shloka_index]
+        _, shloka_telugu = full_shlokas_telugu[chapter][shloka_index]
+        return f"📜 **{chapter}.{verse}**\n🕉 **Hindi:** {shloka_hindi}\n🕉 **Telugu:** {shloka_telugu}"
     return "❌ No previous shloka found. Please request one first!"
 
 import logging
