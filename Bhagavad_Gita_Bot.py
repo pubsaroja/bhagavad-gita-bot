@@ -85,7 +85,7 @@ def get_random_shloka(chapter: str, user_id: int):
     ]
 
     if not available_shlokas:
-        return "✅ All shlokas from this chapter have been shown in this session!"
+        return f"✅ All shlokas from chapter {chapter} have been shown in this session!"
 
     # Select a random unused shloka
     shloka_index = random.choice(available_shlokas)
@@ -108,6 +108,7 @@ def get_random_shloka(chapter: str, user_id: int):
         session_data[user_id]["last_shloka"] = None  # Clear if not found
 
     return f"📖 **Hindi:** {quarter_shloka_hindi}\n🕉 **Telugu:** {quarter_shloka_telugu}"
+
 
 def get_last_shloka(user_id: int):
     """Returns the full last displayed shloka in Hindi & Telugu."""
