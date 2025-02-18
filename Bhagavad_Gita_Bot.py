@@ -18,7 +18,7 @@ TELUGU_WITHOUT_UVACHA_URL = "https://raw.githubusercontent.com/pubsaroja/bhagava
 session_data = {}
 
 def load_shlokas_from_github(url):
-    """Fetches and organizes shlokas from GitHub text files."""
+    """Fetches and organizes shlokas from GitHub text files by chapter."""
     response = requests.get(url)
     
     if response.status_code != 200:
@@ -28,7 +28,7 @@ def load_shlokas_from_github(url):
     shlokas = {}
     lines = response.text.split("\n")
     current_shloka = ""
-    current_chapter_verse = None
+    current_chapter = None
 
     for line in lines:
         line = line.strip()
@@ -38,24 +38,24 @@ def load_shlokas_from_github(url):
         parts = line.split("\t", 1)
         if len(parts) == 2:
             full_number, text = parts
-            chapter_verse = ".".join(full_number.split(".")[:2])  # Extract "chapter.verse"
+            chapter = full_number.split(".")[0]  # Extract only "chapter"
 
-            if chapter_verse not in shlokas:
-                shlokas[chapter_verse] = []
+            if chapter not in shlokas:
+                shlokas[chapter] = []
 
-            # Append to existing shloka if it's the same chapter_verse
-            if current_chapter_verse == chapter_verse:
+            # Append to existing shloka if it's the same chapter
+            if current_chapter == chapter:
                 current_shloka += " " + text
             else:
-                if current_chapter_verse and current_shloka:
-                    shlokas[current_chapter_verse].append(current_shloka.strip())
+                if current_chapter and current_shloka:
+                    shlokas[current_chapter].append(current_shloka.strip())
 
-                current_chapter_verse = chapter_verse
+                current_chapter = chapter
                 current_shloka = text
 
     # Save last shloka after finishing the loop
-    if current_chapter_verse and current_shloka:
-        shlokas[current_chapter_verse].append(current_shloka.strip())
+    if current_chapter and current_shloka:
+        shlokas[current_chapter].append(current_shloka.strip())
 
     return shlokas
 
@@ -73,18 +73,16 @@ def get_random_shloka(chapter: str, user_id: int):
     if user_id not in session_data:
         session_data[user_id] = {"used_shlokas": set(), "last_shloka": None}
 
-    # Convert chapter to string for consistency
     chapter = str(chapter).strip()
 
     if chapter == "0":
-        chapter = random.choice(list(shlokas_hindi.keys()))
+        # Select a random chapter that has shlokas
+        chapter = random.choice([c for c in shlokas_hindi.keys() if shlokas_hindi[c]])
 
-    # Debugging logs
     print(f"Received chapter input: {chapter}")
-    print(f"Available chapters: {list(shlokas_hindi.keys())}")
 
-    if chapter not in shlokas_hindi:
-        return "❌ Invalid chapter number. Please enter a number between 0-18."
+    if chapter not in shlokas_hindi or not shlokas_hindi[chapter]:
+        return "❌ Invalid chapter number. Please enter a number between 1-18."
 
     available_shlokas = [
         i for i in range(len(shlokas_hindi[chapter]))
@@ -118,6 +116,7 @@ def get_last_shloka(user_id: int):
     return "❌ No previous shloka found. Please request one first!"
 
 async def handle_message(update: Update, context: CallbackContext) -> None:
+    """Handles user input."""
     user_text = update.message.text.strip()
     user_id = update.message.chat_id
 
@@ -126,16 +125,16 @@ async def handle_message(update: Update, context: CallbackContext) -> None:
     elif user_text.lower() == "s":
         response = get_last_shloka(user_id)
     else:
-        response = "❌ Please enter a valid chapter number (0-18) or 's' for the last shloka."
+        response = "❌ Please enter a valid chapter number (1-18) or 's' for the last shloka."
 
     await update.message.reply_text(response)
 
 async def start(update: Update, context: CallbackContext):
     """Sends a welcome message when the user starts the bot."""
-    await update.message.reply_text("Welcome to the Bhagavad Gita Bot! Type a chapter number (0-18) to get a shloka, or 's' to get the last one.")
+    await update.message.reply_text("Welcome to the Bhagavad Gita Bot! Type a chapter number (1-18) to get a shloka, or 's' to get the last one.")
 
 def main():
-    # Initialize bot
+    """Main function to run the bot with webhook on Railway."""
     app = Application.builder().token(TOKEN).build()
 
     # Add handlers
