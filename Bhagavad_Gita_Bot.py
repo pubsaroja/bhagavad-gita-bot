@@ -122,23 +122,24 @@ def get_last_shloka(user_id: int):
     return ["❌ No previous shloka found. Please request one first!"]
 
 async def handle_message(update: Update, context: CallbackContext) -> None:
-    """Handles user input."""
     user_text = update.message.text.strip()
-    user_id = update.message.chat_id
+    user_id = update.message.from_user.id
 
     if user_text.isdigit():
         response = get_random_shloka(user_text, user_id)
     elif user_text.lower() == "s":
         response = get_last_shloka(user_id)
     else:
-        response = ["❌ Please enter a valid chapter number (1-18) or 's' for the last shloka."]
+        response = "❌ Invalid input. Please enter a chapter number (1-18), '0' for any chapter, or 's' for the last shloka."
 
-    # Ensure response is not empty
-    if isinstance(response, list):
-        for msg in response:
-            if msg.strip():  # Prevent empty messages
-                await update.message.reply_text(msg)
-    else:
+    if response:
+        # Split the response if it's too long
+        max_message_length = 4096
+        while len(response) > max_message_length:
+            await update.message.reply_text(response[:max_message_length])
+            response = response[max_message_length:]
+        await update.message.reply_text(response)
+
         if response.strip():
             await update.message.reply_text(response)
 
