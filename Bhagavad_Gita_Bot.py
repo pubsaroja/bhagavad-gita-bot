@@ -1,7 +1,7 @@
 import os
 import random
 import logging
-import requests  # Add this import for downloading files
+import requests  # Import requests library for downloading file content from URLs
 from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, CallbackContext
 
@@ -14,16 +14,17 @@ full_shlokas_telugu = {}
 # Session tracking to prevent repetition in one session
 session_data = {}
 
-# Function to download the file if it is a URL
+# Function to download the file content from a URL
 def download_file(url):
-    """Downloads file content from the URL"""
+    """Downloads the file content from the URL."""
     response = requests.get(url)
     if response.status_code == 200:
         return response.text
     else:
+        print(f"Error downloading file from {url}, Status code: {response.status_code}")
         return None
 
-# Function to load shlokas from file content (either from a local file or downloaded)
+# Function to load shlokas from a URL or a local file
 def load_shlokas(filename_or_url):
     chapters = {}
     content = None
@@ -32,14 +33,18 @@ def load_shlokas(filename_or_url):
     if filename_or_url.startswith("http"):
         content = download_file(filename_or_url)
     else:
-        # If it's a local file, just open it
-        with open(filename_or_url, "r", encoding="utf-8") as file:
-            content = file.read()
+        # If it's a local file, open it
+        try:
+            with open(filename_or_url, "r", encoding="utf-8") as file:
+                content = file.read()
+        except FileNotFoundError:
+            print(f"File {filename_or_url} not found locally.")
+            return {}
 
     if content is None:
         return chapters  # Return empty chapters if file content couldn't be loaded
 
-    # Process the content
+    # Process the content to extract chapters and shlokas
     chapter_data = []
     chapter_num = None
     for line in content.splitlines():
