@@ -57,11 +57,10 @@ def load_shlokas(filename_or_url):
     return chapters
 
 # Load shlokas from GitHub files
-shlokas_hindi = load_shlokas("https://raw.githubusercontent.com/pubsaroja/bhagavad-gita-bot/main/BG%20Hindi%20without%20Uvacha.txt")
-shlokas_telugu = load_shlokas("https://raw.githubusercontent.com/pubsaroja/bhagavad-gita-bot/main/BG%20Telugu%20Without%20Uvacha.txt")
-full_shlokas_hindi = load_shlokas("https://raw.githubusercontent.com/pubsaroja/bhagavad-gita-bot/main/BG%20Hindi%20with%20Uvacha.txt")
-full_shlokas_telugu = load_shlokas("https://raw.githubusercontent.com/pubsaroja/bhagavad-gita-bot/main/BG%20Telugu%20with%20Uvacha.txt")
-
+shlokas_hindi = load_shlokas("https://raw.githubusercontent.com/pubsaroja/bhagavad-gita-bot/refs/heads/main/BG%20Hindi%20without%20Uvacha.txt")
+shlokas_telugu = load_shlokas("https://raw.githubusercontent.com/pubsaroja/bhagavad-gita-bot/refs/heads/main/BG%20Telugu%20Without%20Uvacha.txt")
+full_shlokas_hindi = load_shlokas("https://raw.githubusercontent.com/pubsaroja/bhagavad-gita-bot/refs/heads/main/BG%20Hindi%20with%20Uvacha.txt")
+full_shlokas_telugu = load_shlokas("https://raw.githubusercontent.com/pubsaroja/bhagavad-gita-bot/refs/heads/main/BG%20Telugu%20with%20Uvacha.txt")
 
 # Function to extract the first quarter of the shloka
 def get_first_quarter(text):
