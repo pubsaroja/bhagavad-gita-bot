@@ -6,8 +6,9 @@ from telegram.ext import Application, CommandHandler, MessageHandler, filters, C
 
 # Securely get the bot token from Railway environment variables
 TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
+WEBHOOK_URL = os.getenv("WEBHOOK_URL")  # Your Railway domain
 
-# GitHub Raw File URLs (Replace these with your actual GitHub links)
+# GitHub Raw File URLs (Replace these with actual GitHub links)
 HINDI_WITH_UVACHA_URL = "https://raw.githubusercontent.com/pubsaroja/bhagavad-gita-bot/main/BG%20Hindi%20with%20Uvacha.txt"
 TELUGU_WITH_UVACHA_URL = "https://raw.githubusercontent.com/pubsaroja/bhagavad-gita-bot/main/BG%20Telugu%20with%20Uvacha.txt"
 HINDI_WITHOUT_UVACHA_URL = "https://raw.githubusercontent.com/pubsaroja/bhagavad-gita-bot/main/BG%20Hindi%20without%20Uvacha.txt"
@@ -19,41 +20,42 @@ session_data = {}
 def load_shlokas_from_github(url):
     """Fetches and organizes shlokas from GitHub text files."""
     response = requests.get(url)
+    
+    if response.status_code != 200:
+        print(f"⚠️ Error fetching data from {url} (Status Code: {response.status_code})")
+        return {}
+
     shlokas = {}
+    lines = response.text.split("\n")
+    current_shloka = ""
+    current_chapter_verse = None
 
-    if response.status_code == 200:
-        lines = response.text.split("\n")
-        current_shloka = ""
-        current_chapter_verse = None
+    for line in lines:
+        line = line.strip()
+        if not line:
+            continue
 
-        for line in lines:
-            line = line.strip()
-            if not line:  # Skip empty lines
-                continue
+        parts = line.split("\t", 1)
+        if len(parts) == 2:
+            full_number, text = parts
+            chapter_verse = ".".join(full_number.split(".")[:2])  # Extract "chapter.verse"
 
-            parts = line.split("\t", 1)
-            if len(parts) == 2:
-                full_number, text = parts
-                chapter_verse = ".".join(full_number.split(".")[:2])  # Extract "chapter.verse"
+            if chapter_verse not in shlokas:
+                shlokas[chapter_verse] = []
 
-                if chapter_verse not in shlokas:
-                    shlokas[chapter_verse] = []
-
-                # Append to existing shloka if it's the same chapter_verse
-                if current_chapter_verse == chapter_verse:
-                    current_shloka += " " + text
-                else:
-                    if current_chapter_verse and current_shloka:
-                        shlokas[current_chapter_verse].append(current_shloka.strip())
-
-                    current_chapter_verse = chapter_verse
-                    current_shloka = text
+            # Append to existing shloka if it's the same chapter_verse
+            if current_chapter_verse == chapter_verse:
+                current_shloka += " " + text
             else:
-                print(f"Skipping invalid line: {line}")
+                if current_chapter_verse and current_shloka:
+                    shlokas[current_chapter_verse].append(current_shloka.strip())
 
-        # Save last shloka after finishing the loop
-        if current_chapter_verse and current_shloka:
-            shlokas[current_chapter_verse].append(current_shloka.strip())
+                current_chapter_verse = chapter_verse
+                current_shloka = text
+
+    # Save last shloka after finishing the loop
+    if current_chapter_verse and current_shloka:
+        shlokas[current_chapter_verse].append(current_shloka.strip())
 
     return shlokas
 
@@ -67,18 +69,20 @@ def get_random_shloka(chapter: str, user_id: int):
     """Returns the first quarter of a unique random shloka in Hindi & Telugu."""
     global session_data
 
+    # Ensure user session data exists
     if user_id not in session_data:
         session_data[user_id] = {"used_shlokas": set(), "last_shloka": None}
+
+    # Convert chapter to string for consistency
+    chapter = str(chapter).strip()
 
     if chapter == "0":
         chapter = random.choice(list(shlokas_hindi.keys()))
 
-    # Logging the input and available chapters for debugging
+    # Debugging logs
     print(f"Received chapter input: {chapter}")
     print(f"Available chapters: {list(shlokas_hindi.keys())}")
 
-    # Ensure the chapter is a valid chapter number
-    chapter = chapter.strip()
     if chapter not in shlokas_hindi:
         return "❌ Invalid chapter number. Please enter a number between 0-18."
 
@@ -126,23 +130,26 @@ async def handle_message(update: Update, context: CallbackContext) -> None:
 
     await update.message.reply_text(response)
 
-# Define the start function
 async def start(update: Update, context: CallbackContext):
     """Sends a welcome message when the user starts the bot."""
     await update.message.reply_text("Welcome to the Bhagavad Gita Bot! Type a chapter number (0-18) to get a shloka, or 's' to get the last one.")
 
 def main():
-    # Initialize the bot with the token
+    # Initialize bot
     app = Application.builder().token(TOKEN).build()
 
-    # Add the /start command handler
+    # Add handlers
     app.add_handler(CommandHandler("start", start))
-
-    # Add the message handler for user input
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
-    # Start the bot
-    app.run_polling()
+    # Use Webhooks instead of Polling for Railway
+    PORT = int(os.getenv("PORT", 8443))
+    app.run_webhook(
+        listen="0.0.0.0",
+        port=PORT,
+        url_path=TOKEN,
+        webhook_url=f"{WEBHOOK_URL}/{TOKEN}"
+    )
 
 if __name__ == "__main__":
     main()
