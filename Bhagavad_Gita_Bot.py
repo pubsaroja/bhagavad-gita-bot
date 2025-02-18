@@ -94,6 +94,10 @@ def get_random_shloka(chapter: str, user_id: int):
     shloka_hindi = shlokas_hindi[chapter][shloka_index]
     shloka_telugu = shlokas_telugu[chapter][shloka_index]
 
+    # Return only the first quarter of the shloka
+    quarter_shloka_hindi = shloka_hindi[:len(shloka_hindi)//4]
+    quarter_shloka_telugu = shloka_telugu[:len(shloka_telugu)//4]
+
     # Ensure full shloka exists before storing
     if chapter in full_shlokas_hindi and shloka_index < len(full_shlokas_hindi[chapter]):
         session_data[user_id]["last_shloka"] = (
@@ -103,7 +107,7 @@ def get_random_shloka(chapter: str, user_id: int):
     else:
         session_data[user_id]["last_shloka"] = None  # Clear if not found
 
-    return f"📖 **Hindi:** {shloka_hindi}\n🕉 **Telugu:** {shloka_telugu}"
+    return f"📖 **Hindi:** {quarter_shloka_hindi}\n🕉 **Telugu:** {quarter_shloka_telugu}"
 
 def get_last_shloka(user_id: int):
     """Returns the full last displayed shloka in Hindi & Telugu."""
