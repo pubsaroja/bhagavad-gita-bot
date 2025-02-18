@@ -1,6 +1,7 @@
 import os
 import random
 import logging
+import requests  # Add this import for downloading files
 from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, CallbackContext
 
@@ -13,30 +14,54 @@ full_shlokas_telugu = {}
 # Session tracking to prevent repetition in one session
 session_data = {}
 
-# Function to load shlokas from files
-def load_shlokas(filename):
+# Function to download the file if it is a URL
+def download_file(url):
+    """Downloads file content from the URL"""
+    response = requests.get(url)
+    if response.status_code == 200:
+        return response.text
+    else:
+        return None
+
+# Function to load shlokas from file content (either from a local file or downloaded)
+def load_shlokas(filename_or_url):
     chapters = {}
-    with open(filename, "r", encoding="utf-8") as file:
-        chapter_data = []
-        chapter_num = None
-        for line in file:
-            line = line.strip()
-            if line.isdigit():  # Chapter number
-                if chapter_num is not None:
-                    chapters[str(chapter_num)] = chapter_data
-                chapter_num = int(line)
-                chapter_data = []
-            elif line:
-                chapter_data.append(line)
-        if chapter_num is not None:
-            chapters[str(chapter_num)] = chapter_data
+    content = None
+
+    # If it's a URL, download the content
+    if filename_or_url.startswith("http"):
+        content = download_file(filename_or_url)
+    else:
+        # If it's a local file, just open it
+        with open(filename_or_url, "r", encoding="utf-8") as file:
+            content = file.read()
+
+    if content is None:
+        return chapters  # Return empty chapters if file content couldn't be loaded
+
+    # Process the content
+    chapter_data = []
+    chapter_num = None
+    for line in content.splitlines():
+        line = line.strip()
+        if line.isdigit():  # Chapter number
+            if chapter_num is not None:
+                chapters[str(chapter_num)] = chapter_data
+            chapter_num = int(line)
+            chapter_data = []
+        elif line:
+            chapter_data.append(line)
+    if chapter_num is not None:
+        chapters[str(chapter_num)] = chapter_data
+
     return chapters
 
 # Load shlokas from GitHub files
-shlokas_hindi = load_shlokas("https://raw.githubusercontent.com/pubsaroja/bhagavad-gita-bot/refs/heads/main/BG%20Hindi%20without%20Uvacha.txt")
-shlokas_telugu = load_shlokas("https://raw.githubusercontent.com/pubsaroja/bhagavad-gita-bot/refs/heads/main/BG%20Telugu%20Without%20Uvacha.txt")
-full_shlokas_hindi = load_shlokas("https://raw.githubusercontent.com/pubsaroja/bhagavad-gita-bot/refs/heads/main/BG%20Hindi%20with%20Uvacha.txt")
-full_shlokas_telugu = load_shlokas("https://raw.githubusercontent.com/pubsaroja/bhagavad-gita-bot/refs/heads/main/BG%20Telugu%20with%20Uvacha.txt")
+shlokas_hindi = load_shlokas("https://raw.githubusercontent.com/pubsaroja/bhagavad-gita-bot/main/BG%20Hindi%20without%20Uvacha.txt")
+shlokas_telugu = load_shlokas("https://raw.githubusercontent.com/pubsaroja/bhagavad-gita-bot/main/BG%20Telugu%20Without%20Uvacha.txt")
+full_shlokas_hindi = load_shlokas("https://raw.githubusercontent.com/pubsaroja/bhagavad-gita-bot/main/BG%20Hindi%20with%20Uvacha.txt")
+full_shlokas_telugu = load_shlokas("https://raw.githubusercontent.com/pubsaroja/bhagavad-gita-bot/main/BG%20Telugu%20with%20Uvacha.txt")
+
 
 # Function to extract the first quarter of the shloka
 def get_first_quarter(text):
