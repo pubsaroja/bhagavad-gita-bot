@@ -63,64 +63,54 @@ def get_random_shloka(chapter: str, user_id: int):
     """Returns the first quarter of a unique random shloka in Hindi & Telugu."""
     global session_data
 
+    # Ensure session storage exists
+    if user_id not in session_data:
+        session_data[user_id] = {"used_shlokas": set(), "last_shloka": None}
+
+    # Convert chapter to string (to match dictionary keys)
     chapter = str(chapter).strip()
 
+    # Select a random chapter if user enters "0"
     if chapter == "0":
-        chapter = random.choice([c for c in shlokas_hindi.keys() if shlokas_hindi[c]])
+        chapter = random.choice(list(shlokas_hindi.keys()))
 
-    if chapter not in shlokas_hindi or not shlokas_hindi[chapter]:
-        return "❌ Invalid chapter number. Please enter a number between 1-18."
+    # Validate chapter number
+    if chapter not in shlokas_hindi:
+        return "❌ Invalid chapter number. Please enter a number between 0-18."
 
-    if user_id not in session_data:
-        session_data[user_id] = {"used_shlokas": {}, "last_shloka": None}
-
-    if chapter not in session_data[user_id]["used_shlokas"]:
-        session_data[user_id]["used_shlokas"][chapter] = set()
-
-    used_shlokas = session_data[user_id]["used_shlokas"][chapter]
-    total_shlokas = len(shlokas_hindi[chapter])
-
-    if len(used_shlokas) >= total_shlokas:
-        session_data[user_id]["used_shlokas"][chapter] = set()
-        used_shlokas.clear()
-
-    available_shlokas = [i for i in range(total_shlokas) if i not in used_shlokas]
+    # Find available shlokas that haven't been used
+    available_shlokas = [
+        i for i in range(len(shlokas_hindi[chapter]))
+        if i not in session_data[user_id]["used_shlokas"]
+    ]
 
     if not available_shlokas:
-        return "✅ All shlokas from this chapter have been shown in this session! Resetting now..."
+        return "✅ All shlokas from this chapter have been shown in this session!"
 
+    # Select a random unused shloka
     shloka_index = random.choice(available_shlokas)
-    used_shlokas.add(shloka_index)
-
-    # Ensure valid indexing
-    if shloka_index >= len(shlokas_hindi[chapter]) or shloka_index >= len(shlokas_telugu[chapter]):
-        return "❌ Error: Invalid shloka index."
+    session_data[user_id]["used_shlokas"].add(shloka_index)  # Mark as used
 
     shloka_hindi = shlokas_hindi[chapter][shloka_index]
     shloka_telugu = shlokas_telugu[chapter][shloka_index]
 
-    if not shloka_hindi or not shloka_telugu:
-        return "❌ Error: Empty shloka text."
+    # Ensure full shloka exists before storing
+    if chapter in full_shlokas_hindi and shloka_index < len(full_shlokas_hindi[chapter]):
+        session_data[user_id]["last_shloka"] = (
+            full_shlokas_hindi[chapter][shloka_index],
+            full_shlokas_telugu[chapter][shloka_index]
+        )
+    else:
+        session_data[user_id]["last_shloka"] = None  # Clear if not found
 
-    session_data[user_id]["last_shloka"] = (
-        full_shlokas_hindi[chapter][shloka_index],
-        full_shlokas_telugu[chapter][shloka_index]
-    )
-
-    # Return first quarter of the shloka
-    return f"📖 **Hindi (Quarter 1):** {shloka_hindi.split()[0]}\n🕉 **Telugu (Quarter 1):** {shloka_telugu.split()[0]}"
+    return f"📖 **Hindi:** {shloka_hindi}\n🕉 **Telugu:** {shloka_telugu}"
 
 def get_last_shloka(user_id: int):
     """Returns the full last displayed shloka in Hindi & Telugu."""
     if user_id in session_data and session_data[user_id]["last_shloka"]:
         shloka_hindi, shloka_telugu = session_data[user_id]["last_shloka"]
-
-        if not shloka_hindi or not shloka_telugu:
-            return ["❌ Error: Last shloka is empty."]
-
-        return [f"📜 **Full Shloka (Hindi):** {shloka_hindi}\n🕉 **Telugu:** {shloka_telugu}"]
-
-    return ["❌ No previous shloka found. Please request one first!"]
+        return f"📜 **Full Shloka (Hindi):** {shloka_hindi}\n🕉 **Telugu:** {shloka_telugu}"
+    return "❌ No previous shloka found. Please request one first!"
 
 import logging
 
