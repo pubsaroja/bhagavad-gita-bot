@@ -92,38 +92,32 @@ def get_random_shloka(chapter: str, user_id: int):
     shloka_index = random.choice(available_shlokas)
     used_shlokas.add(shloka_index)
 
-    shloka_hindi = shlokas_hindi[chapter][shloka_index].split()
-    shloka_telugu = shlokas_telugu[chapter][shloka_index].split()
+    # Ensure valid indexing
+    if shloka_index >= len(shlokas_hindi[chapter]) or shloka_index >= len(shlokas_telugu[chapter]):
+        return "❌ Error: Invalid shloka index."
 
-    if chapter not in full_shlokas_hindi or shloka_index >= len(full_shlokas_hindi[chapter]):
-        return "❌ No shloka found for this chapter."
+    shloka_hindi = shlokas_hindi[chapter][shloka_index]
+    shloka_telugu = shlokas_telugu[chapter][shloka_index]
+
+    if not shloka_hindi or not shloka_telugu:
+        return "❌ Error: Empty shloka text."
 
     session_data[user_id]["last_shloka"] = (
         full_shlokas_hindi[chapter][shloka_index],
         full_shlokas_telugu[chapter][shloka_index]
     )
 
-    # Fix: Send only the first quarter of each shloka
-    quarter_length_hindi = max(1, len(shloka_hindi) // 4)
-    quarter_length_telugu = max(1, len(shloka_telugu) // 4)
-
-    return f"📖 **Hindi:** {' '.join(shloka_hindi[:quarter_length_hindi])}\n🕉 **Telugu:** {' '.join(shloka_telugu[:quarter_length_telugu])}"
+    return f"📖 **Hindi:** {shloka_hindi.split()[0]}\n🕉 **Telugu:** {shloka_telugu.split()[0]}"
 
 def get_last_shloka(user_id: int):
     """Returns the full last displayed shloka in Hindi & Telugu."""
     if user_id in session_data and session_data[user_id]["last_shloka"]:
         shloka_hindi, shloka_telugu = session_data[user_id]["last_shloka"]
-        
-        # Split into multiple messages if too long
-        messages = []
-        while shloka_hindi or shloka_telugu:
-            part_hindi = shloka_hindi[:1000]  # Max 1000 characters per message
-            part_telugu = shloka_telugu[:1000]
-            messages.append(f"📜 **Full Shloka (Hindi):** {part_hindi}\n🕉 **Telugu:** {part_telugu}")
-            shloka_hindi = shloka_hindi[1000:]
-            shloka_telugu = shloka_telugu[1000:]
 
-        return messages  # List of messages to send sequentially
+        if not shloka_hindi or not shloka_telugu:
+            return ["❌ Error: Last shloka is empty."]
+
+        return [f"📜 **Full Shloka (Hindi):** {shloka_hindi}\n🕉 **Telugu:** {shloka_telugu}"]
 
     return ["❌ No previous shloka found. Please request one first!"]
 
@@ -139,9 +133,14 @@ async def handle_message(update: Update, context: CallbackContext) -> None:
     else:
         response = ["❌ Please enter a valid chapter number (1-18) or 's' for the last shloka."]
 
-    # Send multiple messages if needed
-    for msg in response:
-        await update.message.reply_text(msg)
+    # Ensure response is not empty
+    if isinstance(response, list):
+        for msg in response:
+            if msg.strip():  # Prevent empty messages
+                await update.message.reply_text(msg)
+    else:
+        if response.strip():
+            await update.message.reply_text(response)
 
 async def start(update: Update, context: CallbackContext):
     """Sends a welcome message when the user starts the bot."""
