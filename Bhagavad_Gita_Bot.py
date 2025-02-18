@@ -32,7 +32,8 @@ def load_shlokas_from_github(url):
         parts = line.split("\t", 1)
         if len(parts) == 2:
             full_number, text = parts
-            chapter, verse = full_number.split(".")
+            number_parts = full_number.split(".", 2)  # Ensure only first two parts are used
+            chapter, verse = number_parts[:2]
 
             if chapter not in shlokas:
                 shlokas[chapter] = []
@@ -76,7 +77,7 @@ def get_random_shloka(chapter: str, user_id: int):
     verse, shloka_hindi = shlokas_hindi[chapter][shloka_index]
     _, shloka_telugu = shlokas_telugu[chapter][shloka_index]
 
-    return f"📖 **{chapter}.{verse}**\n🕉 **Hindi:** {shloka_hindi}\n🕉 **Telugu:** {shloka_telugu}"
+    return f"📖 **{chapter}.{verse}**\n🕉 {shloka_hindi}\n🕉 {shloka_telugu}"
 
 def get_last_shloka(user_id: int):
     if user_id in session_data and session_data[user_id]["last_shloka_index"] is not None:
@@ -84,7 +85,7 @@ def get_last_shloka(user_id: int):
         shloka_index = session_data[user_id]["last_shloka_index"]
         verse, shloka_hindi = full_shlokas_hindi[chapter][shloka_index]
         _, shloka_telugu = full_shlokas_telugu[chapter][shloka_index]
-        return f"📜 **{chapter}.{verse}**\n🕉 **Hindi:** {shloka_hindi}\n🕉 **Telugu:** {shloka_telugu}"
+        return f"📜 **{chapter}.{verse}**\n🕉 {shloka_hindi}\n🕉 {shloka_telugu}"
     return "❌ No previous shloka found. Please request one first!"
 
 import logging
