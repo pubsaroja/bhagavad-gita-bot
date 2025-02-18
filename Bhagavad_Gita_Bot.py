@@ -121,6 +121,11 @@ def get_last_shloka(user_id: int):
 
     return ["❌ No previous shloka found. Please request one first!"]
 
+import logging
+
+# Set up logging to track message length
+logging.basicConfig(level=logging.INFO)
+
 async def handle_message(update: Update, context: CallbackContext) -> None:
     user_text = update.message.text.strip()
     user_id = update.message.from_user.id
@@ -133,15 +138,16 @@ async def handle_message(update: Update, context: CallbackContext) -> None:
         response = "❌ Invalid input. Please enter a chapter number (1-18), '0' for any chapter, or 's' for the last shloka."
 
     if response:
-        # Split the response if it's too long
         max_message_length = 4096
+        logging.info(f"Message length: {len(response)}")
+
+        # Split the message if it's too long
         while len(response) > max_message_length:
             await update.message.reply_text(response[:max_message_length])
             response = response[max_message_length:]
+        
+        # Send the remaining message chunk
         await update.message.reply_text(response)
-
-        if response.strip():
-            await update.message.reply_text(response)
 
 async def start(update: Update, context: CallbackContext):
     """Sends a welcome message when the user starts the bot."""
