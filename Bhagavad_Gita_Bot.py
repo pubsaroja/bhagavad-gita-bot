@@ -5,15 +5,13 @@ from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, CallbackContext
 
 TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
-WEBHOOK_URL = os.getenv("WEBHOOK_URL")  # Your Railway domain
+WEBHOOK_URL = os.getenv("WEBHOOK_URL")
 
-# GitHub Raw File URLs (Replace these with actual GitHub links)
 HINDI_WITH_UVACHA_URL = "https://raw.githubusercontent.com/pubsaroja/bhagavad-gita-bot/main/BG%20Hindi%20with%20Uvacha.txt"
 TELUGU_WITH_UVACHA_URL = "https://raw.githubusercontent.com/pubsaroja/bhagavad-gita-bot/main/BG%20Telugu%20with%20Uvacha.txt"
 HINDI_WITHOUT_UVACHA_URL = "https://raw.githubusercontent.com/pubsaroja/bhagavad-gita-bot/main/BG%20Hindi%20without%20Uvacha.txt"
 TELUGU_WITHOUT_UVACHA_URL = "https://raw.githubusercontent.com/pubsaroja/bhagavad-gita-bot/main/BG%20Telugu%20Without%20Uvacha.txt"
 
-# Dictionary to store user session data (to prevent repetition)
 session_data = {}
 
 def load_shlokas_from_github(url):
@@ -37,12 +35,11 @@ def load_shlokas_from_github(url):
         parts = line.split("\t", 1)
         if len(parts) == 2:
             full_number, text = parts
-            chapter = full_number.split(".")[0]  # Extract only "chapter"
+            chapter = full_number.split(".")[0]
 
             if chapter not in shlokas:
                 shlokas[chapter] = []
 
-            # Append to existing shloka if it's the same chapter
             if current_chapter == chapter:
                 current_shloka += " " + text
             else:
@@ -52,13 +49,11 @@ def load_shlokas_from_github(url):
                 current_chapter = chapter
                 current_shloka = text
 
-    # Save last shloka after finishing the loop
     if current_chapter and current_shloka:
         shlokas[current_chapter].append(current_shloka.strip())
 
     return shlokas
 
-# Load shlokas from GitHub
 shlokas_hindi = load_shlokas_from_github(HINDI_WITHOUT_UVACHA_URL)
 shlokas_telugu = load_shlokas_from_github(TELUGU_WITHOUT_UVACHA_URL)
 full_shlokas_hindi = load_shlokas_from_github(HINDI_WITH_UVACHA_URL)
@@ -70,16 +65,12 @@ def get_random_shloka(chapter: str, user_id: int):
 
     chapter = str(chapter).strip()
 
-    # Handle input `0` to select a random chapter
     if chapter == "0":
         chapter = random.choice([c for c in shlokas_hindi.keys() if shlokas_hindi[c]])
-
-    print(f"Received chapter input: {chapter}")
 
     if chapter not in shlokas_hindi or not shlokas_hindi[chapter]:
         return "❌ Invalid chapter number. Please enter a number between 1-18."
 
-    # Initialize session data for the user if not present
     if user_id not in session_data:
         session_data[user_id] = {"used_shlokas": {}, "last_shloka": None}
 
@@ -89,7 +80,6 @@ def get_random_shloka(chapter: str, user_id: int):
     used_shlokas = session_data[user_id]["used_shlokas"][chapter]
     total_shlokas = len(shlokas_hindi[chapter])
 
-    # Reset session data if all shlokas have been used
     if len(used_shlokas) >= total_shlokas:
         session_data[user_id]["used_shlokas"][chapter] = set()
         used_shlokas.clear()
@@ -99,14 +89,12 @@ def get_random_shloka(chapter: str, user_id: int):
     if not available_shlokas:
         return "✅ All shlokas from this chapter have been shown in this session! Resetting now..."
 
-    # Select a new random shloka
     shloka_index = random.choice(available_shlokas)
     used_shlokas.add(shloka_index)
 
     shloka_hindi = shlokas_hindi[chapter][shloka_index].split()
     shloka_telugu = shlokas_telugu[chapter][shloka_index].split()
 
-    # Ensure full shloka exists
     if chapter not in full_shlokas_hindi or shloka_index >= len(full_shlokas_hindi[chapter]):
         return "❌ No shloka found for this chapter."
 
@@ -115,14 +103,29 @@ def get_random_shloka(chapter: str, user_id: int):
         full_shlokas_telugu[chapter][shloka_index]
     )
 
-    return f"📖 **Hindi:** {shloka_hindi[0]}\n🕉 **Telugu:** {shloka_telugu[0]}"
+    # Fix: Send only the first quarter of each shloka
+    quarter_length_hindi = max(1, len(shloka_hindi) // 4)
+    quarter_length_telugu = max(1, len(shloka_telugu) // 4)
+
+    return f"📖 **Hindi:** {' '.join(shloka_hindi[:quarter_length_hindi])}\n🕉 **Telugu:** {' '.join(shloka_telugu[:quarter_length_telugu])}"
 
 def get_last_shloka(user_id: int):
     """Returns the full last displayed shloka in Hindi & Telugu."""
     if user_id in session_data and session_data[user_id]["last_shloka"]:
         shloka_hindi, shloka_telugu = session_data[user_id]["last_shloka"]
-        return f"📜 **Full Shloka (Hindi):** {shloka_hindi}\n🕉 **Telugu:** {shloka_telugu}"
-    return "❌ No previous shloka found. Please request one first!"
+        
+        # Split into multiple messages if too long
+        messages = []
+        while shloka_hindi or shloka_telugu:
+            part_hindi = shloka_hindi[:1000]  # Max 1000 characters per message
+            part_telugu = shloka_telugu[:1000]
+            messages.append(f"📜 **Full Shloka (Hindi):** {part_hindi}\n🕉 **Telugu:** {part_telugu}")
+            shloka_hindi = shloka_hindi[1000:]
+            shloka_telugu = shloka_telugu[1000:]
+
+        return messages  # List of messages to send sequentially
+
+    return ["❌ No previous shloka found. Please request one first!"]
 
 async def handle_message(update: Update, context: CallbackContext) -> None:
     """Handles user input."""
@@ -134,9 +137,11 @@ async def handle_message(update: Update, context: CallbackContext) -> None:
     elif user_text.lower() == "s":
         response = get_last_shloka(user_id)
     else:
-        response = "❌ Please enter a valid chapter number (1-18) or 's' for the last shloka."
+        response = ["❌ Please enter a valid chapter number (1-18) or 's' for the last shloka."]
 
-    await update.message.reply_text(response)
+    # Send multiple messages if needed
+    for msg in response:
+        await update.message.reply_text(msg)
 
 async def start(update: Update, context: CallbackContext):
     """Sends a welcome message when the user starts the bot."""
@@ -146,11 +151,9 @@ def main():
     """Main function to run the bot with webhook on Railway."""
     app = Application.builder().token(TOKEN).build()
 
-    # Add handlers
     app.add_handler(CommandHandler("start", start))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
-    # Use Webhooks instead of Polling for Railway
     PORT = int(os.getenv("PORT", 8443))
     app.run_webhook(
         listen="0.0.0.0",
