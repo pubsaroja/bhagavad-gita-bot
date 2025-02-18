@@ -4,7 +4,6 @@ import requests
 from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, CallbackContext
 
-# Securely get the bot token from Railway environment variables
 TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 WEBHOOK_URL = os.getenv("WEBHOOK_URL")  # Your Railway domain
 
@@ -14,7 +13,7 @@ TELUGU_WITH_UVACHA_URL = "https://raw.githubusercontent.com/pubsaroja/bhagavad-g
 HINDI_WITHOUT_UVACHA_URL = "https://raw.githubusercontent.com/pubsaroja/bhagavad-gita-bot/main/BG%20Hindi%20without%20Uvacha.txt"
 TELUGU_WITHOUT_UVACHA_URL = "https://raw.githubusercontent.com/pubsaroja/bhagavad-gita-bot/main/BG%20Telugu%20Without%20Uvacha.txt"
 
-# Dictionary to store session data (to prevent repetition)
+# Dictionary to store user session data (to prevent repetition)
 session_data = {}
 
 def load_shlokas_from_github(url):
@@ -69,14 +68,10 @@ def get_random_shloka(chapter: str, user_id: int):
     """Returns the first quarter of a unique random shloka in Hindi & Telugu."""
     global session_data
 
-    # Ensure user session data exists
-    if user_id not in session_data:
-        session_data[user_id] = {"used_shlokas": set(), "last_shloka": None}
-
     chapter = str(chapter).strip()
 
+    # Handle input `0` to select a random chapter
     if chapter == "0":
-        # Select a random chapter that has shlokas
         chapter = random.choice([c for c in shlokas_hindi.keys() if shlokas_hindi[c]])
 
     print(f"Received chapter input: {chapter}")
@@ -84,20 +79,34 @@ def get_random_shloka(chapter: str, user_id: int):
     if chapter not in shlokas_hindi or not shlokas_hindi[chapter]:
         return "❌ Invalid chapter number. Please enter a number between 1-18."
 
-    available_shlokas = [
-        i for i in range(len(shlokas_hindi[chapter]))
-        if i not in session_data[user_id]["used_shlokas"]
-    ]
+    # Initialize session data for the user if not present
+    if user_id not in session_data:
+        session_data[user_id] = {"used_shlokas": {}, "last_shloka": None}
+
+    if chapter not in session_data[user_id]["used_shlokas"]:
+        session_data[user_id]["used_shlokas"][chapter] = set()
+
+    used_shlokas = session_data[user_id]["used_shlokas"][chapter]
+    total_shlokas = len(shlokas_hindi[chapter])
+
+    # Reset session data if all shlokas have been used
+    if len(used_shlokas) >= total_shlokas:
+        session_data[user_id]["used_shlokas"][chapter] = set()
+        used_shlokas.clear()
+
+    available_shlokas = [i for i in range(total_shlokas) if i not in used_shlokas]
 
     if not available_shlokas:
-        return "✅ All shlokas from this chapter have been shown in this session!"
+        return "✅ All shlokas from this chapter have been shown in this session! Resetting now..."
 
+    # Select a new random shloka
     shloka_index = random.choice(available_shlokas)
-    session_data[user_id]["used_shlokas"].add(shloka_index)
+    used_shlokas.add(shloka_index)
 
     shloka_hindi = shlokas_hindi[chapter][shloka_index].split()
     shloka_telugu = shlokas_telugu[chapter][shloka_index].split()
 
+    # Ensure full shloka exists
     if chapter not in full_shlokas_hindi or shloka_index >= len(full_shlokas_hindi[chapter]):
         return "❌ No shloka found for this chapter."
 
