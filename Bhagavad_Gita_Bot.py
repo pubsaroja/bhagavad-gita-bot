@@ -16,13 +16,14 @@ session_data = {}
 
 def load_shlokas_from_github(url):
     response = requests.get(url)
-    
     if response.status_code != 200:
         print(f"⚠️ Error fetching data from {url} (Status Code: {response.status_code})")
         return {}
 
     shlokas = {}
     lines = response.text.split("\n")
+    current_number = None
+    current_shloka = []
 
     for line in lines:
         line = line.strip()
@@ -31,14 +32,22 @@ def load_shlokas_from_github(url):
 
         parts = line.split("\t", 1)
         if len(parts) == 2:
-            full_number, text = parts
-            number_parts = full_number.split(".", 2)  # Ensure only first two parts are used
-            chapter, verse = number_parts[:2]
+            if current_number:
+                chapter, verse = current_number.split(".")
+                if chapter not in shlokas:
+                    shlokas[chapter] = []
+                shlokas[chapter].append((verse, "\n".join(current_shloka)))
+            
+            current_number = parts[0]
+            current_shloka = [parts[1]]
+        else:
+            current_shloka.append(line)
 
-            if chapter not in shlokas:
-                shlokas[chapter] = []
-
-            shlokas[chapter].append((verse, text))
+    if current_number:
+        chapter, verse = current_number.split(".")
+        if chapter not in shlokas:
+            shlokas[chapter] = []
+        shlokas[chapter].append((verse, "\n".join(current_shloka)))
     
     return shlokas
 
