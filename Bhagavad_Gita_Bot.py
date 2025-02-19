@@ -16,39 +16,42 @@ session_data = {}
 
 def load_shlokas_from_github(url):
     response = requests.get(url)
+    
     if response.status_code != 200:
         print(f"⚠️ Error fetching data from {url} (Status Code: {response.status_code})")
         return {}
 
     shlokas = {}
-    lines = response.text.split("\n")
     current_number = None
-    current_shloka = []
+    current_text = []
+
+    lines = response.text.split("\n")
 
     for line in lines:
         line = line.strip()
         if not line:
             continue
 
-        parts = line.split("\t", 1)
+        parts = line.split("\t", 1)  # Split only at the first tab
         if len(parts) == 2:
-            if current_number:
-                chapter, verse = current_number.split(".")
+            if current_number:  # Save previous verse before starting a new one
+                chapter, verse = current_number.split(".")[:2]  # Extract only first two parts
                 if chapter not in shlokas:
                     shlokas[chapter] = []
-                shlokas[chapter].append((verse, "\n".join(current_shloka)))
-            
-            current_number = parts[0]
-            current_shloka = [parts[1]]
-        else:
-            current_shloka.append(line)
+                shlokas[chapter].append((verse, "\n".join(current_text)))
 
+            current_number = parts[0]  # New verse number
+            current_text = [parts[1]]  # Start collecting new verse lines
+        else:
+            current_text.append(line)  # Continuation of previous verse
+
+    # Save the last verse after loop
     if current_number:
-        chapter, verse = current_number.split(".")
+        chapter, verse = current_number.split(".")[:2]
         if chapter not in shlokas:
             shlokas[chapter] = []
-        shlokas[chapter].append((verse, "\n".join(current_shloka)))
-    
+        shlokas[chapter].append((verse, "\n".join(current_text)))
+
     return shlokas
 
 shlokas_hindi = load_shlokas_from_github(HINDI_WITHOUT_UVACHA_URL)
