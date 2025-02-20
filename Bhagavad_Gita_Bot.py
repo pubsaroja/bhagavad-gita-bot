@@ -146,12 +146,12 @@ async def start(update: Update, context: CallbackContext):
     await update.message.reply_text(
         "Jai Gurudatta!\n"
         "Welcome to Srimad Bhagavadgita Random Practice chatbot.\n"
-        "Pressing 1-18 → Shows a random shloka from that chapter (without Uvacha).\n"
-        "Pressing 0 → Shows a random shloka from any chapter (without Uvacha).\n"
-        "Pressing s → Shows the full shloka (with Uvacha).\n"
-        "Pressing 1a-18a → Shows a random shloka from that chapter (without Uvacha) with audio.\n"
-        "Pressing 0a → Shows a random shloka from any chapter (without Uvacha) with audio.\n"
-        "Pressing sa → Shows the full shloka (with Uvacha) with audio."
+        "Pressing 1-18 → Shows a random shloka from that chapter.\n"
+        "Pressing 0 → Shows a random shloka from any chapter.\n"
+        "Pressing s → Shows the full shloka.\n"
+        "Pressing 1a-18a → Shows a random shloka from that chapter with audio.\n"
+        "Pressing 0a → Shows a random shloka from any chapter with audio.\n"
+        "Pressing sa → Shows the full shloka with audio."
     )
 
 
