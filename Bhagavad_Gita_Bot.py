@@ -67,16 +67,17 @@ logging.basicConfig(level=logging.INFO)
 
 # Function to get the next shloka
 def get_next_shloka(user_id: int, count: int = 1):
-    if user_id not in session_data or session_data[user_id]["last_shloka_index"] is None:
+    if user_id not in session_data or "last_chapter" not in session_data[user_id]:
         return "❌ No previous shloka found. Please request one first!", None
 
     chapter = session_data[user_id]["last_chapter"]
     shloka_index = session_data[user_id]["last_shloka_index"]
     next_shlokas = []
+    audio_links = []
 
     for _ in range(count):
         shloka_index += 1
-        if shloka_index >= len(full_shlokas_hindi[chapter]):
+        if shloka_index >= len(full_shlokas_hindi.get(chapter, [])):
             chapter = str(int(chapter) + 1)  # Move to the next chapter
             if chapter not in full_shlokas_hindi:
                 return "✅ End of Bhagavad Gita reached!", None
@@ -88,11 +89,12 @@ def get_next_shloka(user_id: int, count: int = 1):
         audio_link = f"{AUDIO_FULL_URL}{audio_file_name}"
 
         next_shlokas.append(f"{chapter}.{verse}\n{shloka_hindi}\n{shloka_telugu}")
+        audio_links.append(audio_link)
 
     session_data[user_id]["last_shloka_index"] = shloka_index
     session_data[user_id]["last_chapter"] = chapter
 
-    return "\n\n".join(next_shlokas), audio_link
+    return "\n\n".join(next_shlokas), audio_links[0] if audio_links else None
 
 # Message Handler
 async def handle_message(update: Update, context: CallbackContext) -> None:
