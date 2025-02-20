@@ -1,166 +1,102 @@
-import os
 import random
-import requests
 from telegram import Update
-from telegram.ext import Application, CommandHandler, MessageHandler, filters, CallbackContext
+from telegram.ext import Updater, CallbackContext, MessageHandler, Filters
+import requests
 
-# Bot Token & Webhook URL
-TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
-WEBHOOK_URL = os.getenv("WEBHOOK_URL")
-
-# File URLs
+# URLs for fetching shlokas
 HINDI_WITH_UVACHA_URL = "https://raw.githubusercontent.com/pubsaroja/bhagavad-gita-bot/refs/heads/main/BG%20Hindi%20with%20Uvacha.txt"
 TELUGU_WITH_UVACHA_URL = "https://raw.githubusercontent.com/pubsaroja/bhagavad-gita-bot/refs/heads/main/BG%20Telugu%20with%20Uvacha.txt"
-HINDI_WITHOUT_UVACHA_URL = "https://raw.githubusercontent.com/pubsaroja/bhagavad-gita-bot/refs/heads/main/BG%20Hindi%20without%20Uvacha.txt"
-TELUGU_WITHOUT_UVACHA_URL = "https://raw.githubusercontent.com/pubsaroja/bhagavad-gita-bot/refs/heads/main/BG%20Telugu%20Without%20Uvacha.txt"
 
-AUDIO_QUARTER_URL = "https://raw.githubusercontent.com/pubsaroja/bhagavad-gita-bot/main/AudioQuarter/"
-AUDIO_FULL_URL = "https://raw.githubusercontent.com/pubsaroja/bhagavad-gita-bot/main/AudioFull/"
-
-# Session data to track shown shlokas
-session_data = {}
-
-# Function to load shlokas from GitHub
-def load_shlokas_from_github(url):
+# Load shlokas into memory
+def load_shlokas(url):
     response = requests.get(url)
-    if response.status_code != 200:
-        print(f"⚠️ Error fetching data from {url} (Status Code: {response.status_code})")
-        return {}
+    return response.text.split("\n\n") if response.status_code == 200 else []
 
-    shlokas = {}
-    current_number = None
-    current_text = []
+hindi_shlokas = load_shlokas(HINDI_WITH_UVACHA_URL)
+telugu_shlokas = load_shlokas(TELUGU_WITH_UVACHA_URL)
 
-    lines = response.text.split("\n")
+# Dictionary to store user last sent shloka
+user_last_shloka = {}
 
-    for line in lines:
-        line = line.strip()
-        if not line:
-            continue
-
-        parts = line.split("\t", 1)  # Split only at the first tab
-        if len(parts) == 2:
-            if current_number:  # Save previous verse before starting a new one
-                chapter, verse = current_number.split(".")[:2]  # Extract first two parts
-                if chapter not in shlokas:
-                    shlokas[chapter] = []
-                shlokas[chapter].append((verse, "\n".join(current_text)))
-
-            current_number = parts[0]  # New verse number
-            current_text = [parts[1]]  # Start collecting new verse lines
-        else:
-            current_text.append(line)  # Continuation of previous verse
-
-    # Save the last verse
-    if current_number:
-        chapter, verse = current_number.split(".")[:2]
-        if chapter not in shlokas:
-            shlokas[chapter] = []
-        shlokas[chapter].append((verse, "\n".join(current_text)))
-
-    return shlokas
-
-# Load all shlokas
-shlokas_hindi = load_shlokas_from_github(HINDI_WITHOUT_UVACHA_URL)
-shlokas_telugu = load_shlokas_from_github(TELUGU_WITHOUT_UVACHA_URL)
-full_shlokas_hindi = load_shlokas_from_github(HINDI_WITH_UVACHA_URL)
-full_shlokas_telugu = load_shlokas_from_github(TELUGU_WITH_UVACHA_URL)
-
-# Function to get a random shloka
-def get_random_shloka(chapter: str, user_id: int, with_audio: bool = False):
-    global session_data
-
-    if user_id not in session_data:
-        session_data[user_id] = {"used_shlokas": set(), "last_shloka_index": None, "last_chapter": None}
-
-    chapter = str(chapter).strip()
-
-    if chapter == "0":
-        chapter = random.choice(list(shlokas_hindi.keys()))
+# Function to send a shloka
+def send_shloka(update: Update, context: CallbackContext, chapter=None):
+    chat_id = update.message.chat_id
     
-    if chapter not in shlokas_hindi:
-        return "❌ Invalid chapter number. Please enter a number between 0-18.", None
-
-    available_shlokas = [
-        i for i in range(len(shlokas_hindi[chapter]))
-        if i not in session_data[user_id]["used_shlokas"]
-    ]
-
-    if not available_shlokas:
-        return f"✅ All shlokas from chapter {chapter} have been shown in this session!", None
-
-    shloka_index = random.choice(available_shlokas)
-    session_data[user_id]["used_shlokas"].add(shloka_index)
-    session_data[user_id]["last_shloka_index"] = shloka_index
-    session_data[user_id]["last_chapter"] = chapter
-
-    verse, shloka_hindi = shlokas_hindi[chapter][shloka_index]
-    _, shloka_telugu = shlokas_telugu[chapter][shloka_index]
-
-    audio_file_name = f"{chapter}.{verse}.mp3"
-    audio_link = f"{AUDIO_QUARTER_URL}{audio_file_name}" if with_audio else None
-
-    return f"{chapter}.{verse}\n{shloka_hindi}\n{shloka_telugu}", audio_link
-
-# Function to get the last full shloka
-def get_last_shloka(user_id: int, with_audio: bool = False):
-    if user_id in session_data and session_data[user_id]["last_shloka_index"] is not None:
-        chapter = session_data[user_id]["last_chapter"]
-        shloka_index = session_data[user_id]["last_shloka_index"]
-        verse, shloka_hindi = full_shlokas_hindi[chapter][shloka_index]
-        _, shloka_telugu = full_shlokas_telugu[chapter][shloka_index]
-
-        audio_file_name = f"{chapter}.{verse}.mp3"
-        audio_link = f"{AUDIO_FULL_URL}{audio_file_name}" if with_audio else None
-
-        return f"{chapter}.{verse}\n{shloka_hindi}\n{shloka_telugu}", audio_link
-    return "❌ No previous shloka found. Please request one first!", None
-
-import logging
-
-logging.basicConfig(level=logging.INFO)
-
-# Message Handler
-async def handle_message(update: Update, context: CallbackContext) -> None:
-    user_text = update.message.text.strip().lower()
-    user_id = update.message.from_user.id
-
-    with_audio = user_text.endswith("a")
-    if with_audio:
-        user_text = user_text[:-1]
-
-    if user_text.isdigit():
-        response, audio_url = get_random_shloka(user_text, user_id, with_audio)
-    elif user_text == "s":
-        response, audio_url = get_last_shloka(user_id, with_audio)
+    if chapter is None:
+        shloka_hindi = random.choice(hindi_shlokas)
+        shloka_telugu = random.choice(telugu_shlokas)
     else:
-        response, audio_url = "❌ Invalid input. Please enter a chapter number (1-18), '0' for any chapter, or 's' for the last shloka.", None
+        filtered_hindi = [s for s in hindi_shlokas if s.startswith(f"{chapter}.")]
+        filtered_telugu = [s for s in telugu_shlokas if s.startswith(f"{chapter}.")]
+        
+        if not filtered_hindi or not filtered_telugu:
+            update.message.reply_text("No shlokas found for this chapter.")
+            return
+        
+        shloka_hindi = random.choice(filtered_hindi)
+        shloka_telugu = random.choice(filtered_telugu)
+    
+    response = f"*Hindi:*\n{shloka_hindi}\n\n*Telugu:*\n{shloka_telugu}"
+    update.message.reply_text(response, parse_mode='Markdown')
+    
+    # Store last sent shloka
+    shloka_number = shloka_hindi.split("\n")[0]  # Extract verse number
+    user_last_shloka[chat_id] = shloka_number
 
-    if response:
-        await update.message.reply_text(response)
-    if audio_url:
-        await update.message.reply_audio(audio_url)
+# Function to get the next shloka
+def get_next_shloka(update: Update, context: CallbackContext, count=1):
+    chat_id = update.message.chat_id
+    if chat_id not in user_last_shloka:
+        update.message.reply_text("Send a shloka first using a chapter number.")
+        return
+    
+    last_shloka = user_last_shloka[chat_id]
+    chapter, verse = map(int, last_shloka.split("."))
+    
+    next_shlokas_hindi = []
+    next_shlokas_telugu = []
+    
+    for _ in range(count):
+        verse += 1
+        next_hindi = next((s for s in hindi_shlokas if s.startswith(f"{chapter}.{verse}")), None)
+        next_telugu = next((s for s in telugu_shlokas if s.startswith(f"{chapter}.{verse}")), None)
+        
+        if not next_hindi or not next_telugu:
+            chapter += 1  # Move to next chapter
+            verse = 1
+            next_hindi = next((s for s in hindi_shlokas if s.startswith(f"{chapter}.{verse}")), None)
+            next_telugu = next((s for s in telugu_shlokas if s.startswith(f"{chapter}.{verse}")), None)
+            
+            if not next_hindi or not next_telugu:
+                update.message.reply_text("End of Bhagavad Gita reached.")
+                return
+        
+        next_shlokas_hindi.append(next_hindi)
+        next_shlokas_telugu.append(next_telugu)
+    
+    response = "\n\n".join([f"*Hindi:*\n{h}\n\n*Telugu:*\n{t}" for h, t in zip(next_shlokas_hindi, next_shlokas_telugu)])
+    update.message.reply_text(response, parse_mode='Markdown')
+    
+    user_last_shloka[chat_id] = f"{chapter}.{verse}"  # Update last shloka
 
-# Start Handler
-async def start(update: Update, context: CallbackContext):
-    await update.message.reply_text(
-        "Jai Gurudatta!\n"
-        "Welcome to Srimad Bhagavadgita Random Practice chatbot.\n"
-        "Pressing 1-18 → Shows a random shloka from that chapter.\n"
-        "Pressing 0 → Shows a random shloka from any chapter.\n"
-        "Pressing s → Shows the full shloka.\n"
-        "Pressing 1a-18a → Shows a random shloka from that chapter with audio.\n"
-        "Pressing 0a → Shows a random shloka from any chapter with audio.\n"
-        "Pressing sa → Shows the full shloka with audio."
-    )
+# Command handler
+def handle_message(update: Update, context: CallbackContext):
+    text = update.message.text.strip().lower()
+    
+    if text.isdigit() and 0 <= int(text) <= 18:
+        send_shloka(update, context, chapter=int(text) if text != "0" else None)
+    elif text in ["n", "n1", "n2", "n3", "n4", "n5"]:
+        get_next_shloka(update, context, count=int(text[1:]) if text != "n" else 1)
+    else:
+        update.message.reply_text("Invalid command. Send a number (1-18) to get a shloka, or 'n' for next shloka up to 'n5'.")
 
-
-# Main Function
+# Main function
 def main():
-    app = Application.builder().token(TOKEN).build()
-    app.add_handler(CommandHandler("start", start))
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
-    app.run_polling()
+    updater = Updater("YOUR_TELEGRAM_BOT_TOKEN", use_context=True)
+    dp = updater.dispatcher
+    dp.add_handler(MessageHandler(Filters.text & ~Filters.command, handle_message))
+    updater.start_polling()
+    updater.idle()
 
 if __name__ == "__main__":
     main()
