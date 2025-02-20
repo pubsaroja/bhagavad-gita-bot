@@ -1,52 +1,63 @@
 import os
 import logging
+import json
 from flask import Flask, request
-import telegram
-from telegram.ext import Updater, CommandHandler, MessageHandler, Filters, Dispatcher
+from telegram import Update
+from telegram.ext import Application, CommandHandler, MessageHandler, CallbackContext, filters
 
-# Load environment variables
-TOKEN = os.getenv("BOT_TOKEN")  # Make sure Railway has this environment variable set
-APP_URL = os.getenv("APP_URL")  # Example: https://bhagavad-gita-bot-production.up.railway.app
+TOKEN = os.getenv("BOT_TOKEN")
+WEBHOOK_URL = os.getenv("WEBHOOK_URL")  # Set this in Railway
 
-# Initialize Flask app
 app = Flask(__name__)
 
-# Setup Telegram bot
-bot = telegram.Bot(token=TOKEN)
-
-# Configure logging
+# Setup logging
 logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
-# Initialize dispatcher
-dispatcher = Dispatcher(bot, None, use_context=True)
+# Initialize Telegram Bot
+tg_app = Application.builder().token(TOKEN).build()
 
-# Define /start command
-def start(update, context):
-    update.message.reply_text("Namaste! 🙏 Welcome to the Bhagavad Gita bot!")
+# ---------------------------- Handlers ----------------------------
 
-# Handle text messages
-def handle_message(update, context):
+async def start(update: Update, context: CallbackContext):
+    """Handles the /start command."""
+    await update.message.reply_text("Welcome to Bhagavad Gita Bot! Choose a chapter.")
+
+async def handle_message(update: Update, context: CallbackContext):
+    """Handles incoming messages."""
     text = update.message.text
-    update.message.reply_text(f"You said: {text}")
+    chat_id = update.message.chat_id
+    await update.message.reply_text(f"You said: {text}")  # Replace with Gita logic
 
-# Add handlers
-dispatcher.add_handler(CommandHandler("start", start))
-dispatcher.add_handler(MessageHandler(Filters.text & ~Filters.command, handle_message))
+# ---------------------------- Webhook Handling ----------------------------
 
-# Webhook route
-@app.route(f'/{TOKEN}', methods=['POST'])
+@app.route(f"/{TOKEN}", methods=["POST"])
 def webhook():
-    update = telegram.Update.de_json(request.get_json(), bot)
-    dispatcher.process_update(update)
-    return "OK", 200
+    """Handles incoming updates from Telegram."""
+    try:
+        update = Update.de_json(request.get_json(force=True), tg_app.bot)
+        tg_app.update_queue.put_nowait(update)
+        return "OK", 200
+    except Exception as e:
+        logger.error(f"Error handling webhook: {str(e)}")
+        return "Error", 500
 
-# Set webhook
-def set_webhook():
-    webhook_url = f"{APP_URL}/{TOKEN}"
-    bot.setWebhook(webhook_url)
-    logging.info(f"Webhook set to {webhook_url}")
+# ---------------------------- Bot Initialization ----------------------------
 
-# Run Flask app
+def main():
+    """Start the bot with webhook."""
+    logger.info("Starting bot...")
+
+    # Add command handlers
+    tg_app.add_handler(CommandHandler("start", start))
+    tg_app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+
+    # Set webhook
+    tg_app.run_webhook(
+        listen="0.0.0.0",
+        port=int(os.getenv("PORT", 8080)),
+        webhook_url=f"{WEBHOOK_URL}/{TOKEN}"
+    )
+
 if __name__ == "__main__":
-    set_webhook()  # Set webhook when the bot starts
-    app.run(host="0.0.0.0", port=8080)  # Railway uses port 8080
+    main()
