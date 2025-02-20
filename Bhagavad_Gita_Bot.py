@@ -1,24 +1,26 @@
 import os
 import random
 import requests
-from telegram import Update, InputFile
+from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, CallbackContext
 
+# Bot Token & Webhook URL
 TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 WEBHOOK_URL = os.getenv("WEBHOOK_URL")
 
+# File URLs
 HINDI_WITH_UVACHA_URL = "https://raw.githubusercontent.com/pubsaroja/bhagavad-gita-bot/refs/heads/main/BG%20Hindi%20with%20Uvacha.txt"
 TELUGU_WITH_UVACHA_URL = "https://raw.githubusercontent.com/pubsaroja/bhagavad-gita-bot/refs/heads/main/BG%20Telugu%20with%20Uvacha.txt"
 HINDI_WITHOUT_UVACHA_URL = "https://raw.githubusercontent.com/pubsaroja/bhagavad-gita-bot/refs/heads/main/BG%20Hindi%20without%20Uvacha.txt"
 TELUGU_WITHOUT_UVACHA_URL = "https://raw.githubusercontent.com/pubsaroja/bhagavad-gita-bot/refs/heads/main/BG%20Telugu%20Without%20Uvacha.txt"
-AUDIO_QUARTER_URL = "https://raw.githubusercontent.com/pubsaroja/bhagavad-gita-bot/main/AudioQuarter/"
-AUDIO_FULL_URL = "https://raw.githubusercontent.com/pubsaroja/bhagavad-gita-bot/main/AudioFull/"
 
 AUDIO_QUARTER_URL = "https://raw.githubusercontent.com/pubsaroja/bhagavad-gita-bot/main/AudioQuarter/"
 AUDIO_FULL_URL = "https://raw.githubusercontent.com/pubsaroja/bhagavad-gita-bot/main/AudioFull/"
 
+# Session data to track shown shlokas
 session_data = {}
 
+# Function to load shlokas from GitHub
 def load_shlokas_from_github(url):
     response = requests.get(url)
     if response.status_code != 200:
@@ -30,24 +32,26 @@ def load_shlokas_from_github(url):
     current_text = []
 
     lines = response.text.split("\n")
+
     for line in lines:
         line = line.strip()
         if not line:
             continue
 
-        parts = line.split("\t", 1)
+        parts = line.split("\t", 1)  # Split only at the first tab
         if len(parts) == 2:
-            if current_number:
-                chapter, verse = current_number.split(".")[:2]
+            if current_number:  # Save previous verse before starting a new one
+                chapter, verse = current_number.split(".")[:2]  # Extract first two parts
                 if chapter not in shlokas:
                     shlokas[chapter] = []
                 shlokas[chapter].append((verse, "\n".join(current_text)))
 
-            current_number = parts[0]
-            current_text = [parts[1]]
+            current_number = parts[0]  # New verse number
+            current_text = [parts[1]]  # Start collecting new verse lines
         else:
-            current_text.append(line)
+            current_text.append(line)  # Continuation of previous verse
 
+    # Save the last verse
     if current_number:
         chapter, verse = current_number.split(".")[:2]
         if chapter not in shlokas:
@@ -56,16 +60,13 @@ def load_shlokas_from_github(url):
 
     return shlokas
 
+# Load all shlokas
 shlokas_hindi = load_shlokas_from_github(HINDI_WITHOUT_UVACHA_URL)
 shlokas_telugu = load_shlokas_from_github(TELUGU_WITHOUT_UVACHA_URL)
 full_shlokas_hindi = load_shlokas_from_github(HINDI_WITH_UVACHA_URL)
 full_shlokas_telugu = load_shlokas_from_github(TELUGU_WITH_UVACHA_URL)
 
-def get_audio_file(chapter: str, verse: str, full_shloka: bool):
-    folder_url = AUDIO_FULL_URL if full_shloka else AUDIO_QUARTER_URL
-    file_name = f"{chapter}.{verse}.mp3"
-    return folder_url + file_name
-
+# Function to get a random shloka and corresponding audio
 def get_random_shloka(chapter: str, user_id: int):
     global session_data
 
@@ -76,12 +77,19 @@ def get_random_shloka(chapter: str, user_id: int):
 
     if chapter == "0":
         chapter = random.choice(list(full_shlokas_hindi.keys()))
+        shloka_source_hindi = full_shlokas_hindi
+        shloka_source_telugu = full_shlokas_telugu
+        audio_url = AUDIO_FULL_URL
+    else:
+        if chapter not in shlokas_hindi:
+            return "❌ Invalid chapter number. Please enter a number between 0-18.", None
 
-    if chapter not in shlokas_hindi:
-        return "❌ Invalid chapter number. Please enter a number between 0-18.", None
+        shloka_source_hindi = shlokas_hindi
+        shloka_source_telugu = shlokas_telugu
+        audio_url = AUDIO_QUARTER_URL
 
     available_shlokas = [
-        i for i in range(len(shlokas_hindi[chapter]))
+        i for i in range(len(shloka_source_hindi[chapter]))
         if i not in session_data[user_id]["used_shlokas"]
     ]
 
@@ -93,13 +101,15 @@ def get_random_shloka(chapter: str, user_id: int):
     session_data[user_id]["last_shloka_index"] = shloka_index
     session_data[user_id]["last_chapter"] = chapter
 
-    verse, shloka_hindi = shlokas_hindi[chapter][shloka_index]
-    _, shloka_telugu = shlokas_telugu[chapter][shloka_index]
+    verse, shloka_hindi = shloka_source_hindi[chapter][shloka_index]
+    _, shloka_telugu = shloka_source_telugu[chapter][shloka_index]
 
-    audio_url = get_audio_file(chapter, verse, full_shloka=False)
+    audio_file_name = f"{chapter}.{verse}.mp3"
+    audio_link = f"{audio_url}{audio_file_name}"
 
-    return f"{chapter}.{verse}\n{shloka_hindi}\n{shloka_telugu}", audio_url
+    return f"{chapter}.{verse}\n{shloka_hindi}\n{shloka_telugu}", audio_link
 
+# Function to get the last full shloka and corresponding audio
 def get_last_shloka(user_id: int):
     if user_id in session_data and session_data[user_id]["last_shloka_index"] is not None:
         chapter = session_data[user_id]["last_chapter"]
@@ -107,14 +117,17 @@ def get_last_shloka(user_id: int):
         verse, shloka_hindi = full_shlokas_hindi[chapter][shloka_index]
         _, shloka_telugu = full_shlokas_telugu[chapter][shloka_index]
 
-        audio_url = get_audio_file(chapter, verse, full_shloka=True)
+        audio_file_name = f"{chapter}.{verse}.mp3"
+        audio_link = f"{AUDIO_FULL_URL}{audio_file_name}"
 
-        return f"{chapter}.{verse}\n{shloka_hindi}\n{shloka_telugu}", audio_url
+        return f"{chapter}.{verse}\n{shloka_hindi}\n{shloka_telugu}", audio_link
     return "❌ No previous shloka found. Please request one first!", None
 
 import logging
+
 logging.basicConfig(level=logging.INFO)
 
+# Message Handler
 async def handle_message(update: Update, context: CallbackContext) -> None:
     user_text = update.message.text.strip()
     user_id = update.message.from_user.id
@@ -124,18 +137,18 @@ async def handle_message(update: Update, context: CallbackContext) -> None:
     elif user_text.lower() == "s":
         response, audio_url = get_last_shloka(user_id)
     else:
-        response = "❌ Invalid input. Please enter a chapter number (1-18), '0' for any chapter, or 's' for the last shloka."
-        audio_url = None
+        response, audio_url = "❌ Invalid input. Please enter a chapter number (1-18), '0' for any chapter, or 's' for the last shloka.", None
 
     if response:
         await update.message.reply_text(response)
-
     if audio_url:
-        await update.message.reply_voice(voice=audio_url)
+        await update.message.reply_audio(audio_url)
 
+# Start Handler
 async def start(update: Update, context: CallbackContext):
     await update.message.reply_text("Welcome to the Bhagavad Gita Bot! Type a chapter number (1-18) to get a shloka, or 's' to get the last one.")
 
+# Main Function
 def main():
     app = Application.builder().token(TOKEN).build()
 
