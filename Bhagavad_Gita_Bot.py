@@ -1,6 +1,6 @@
 import random
 from telegram import Update
-from telegram.ext import Updater, CallbackContext, MessageHandler, Filters
+from telegram.ext import Application, MessageHandler, filters
 import requests
 
 # URLs for fetching shlokas
@@ -19,7 +19,7 @@ telugu_shlokas = load_shlokas(TELUGU_WITH_UVACHA_URL)
 user_last_shloka = {}
 
 # Function to send a shloka
-def send_shloka(update: Update, context: CallbackContext, chapter=None):
+def send_shloka(update: Update, context, chapter=None):
     chat_id = update.message.chat_id
     
     if chapter is None:
@@ -44,7 +44,7 @@ def send_shloka(update: Update, context: CallbackContext, chapter=None):
     user_last_shloka[chat_id] = shloka_number
 
 # Function to get the next shloka
-def get_next_shloka(update: Update, context: CallbackContext, count=1):
+def get_next_shloka(update: Update, context, count=1):
     chat_id = update.message.chat_id
     if chat_id not in user_last_shloka:
         update.message.reply_text("Send a shloka first using a chapter number.")
@@ -80,7 +80,7 @@ def get_next_shloka(update: Update, context: CallbackContext, count=1):
     user_last_shloka[chat_id] = f"{chapter}.{verse}"  # Update last shloka
 
 # Command handler
-def handle_message(update: Update, context: CallbackContext):
+def handle_message(update: Update, context):
     text = update.message.text.strip().lower()
     
     if text.isdigit() and 0 <= int(text) <= 18:
@@ -92,11 +92,9 @@ def handle_message(update: Update, context: CallbackContext):
 
 # Main function
 def main():
-    updater = Updater("YOUR_TELEGRAM_BOT_TOKEN", use_context=True)
-    dp = updater.dispatcher
-    dp.add_handler(MessageHandler(Filters.text & ~Filters.command, handle_message))
-    updater.start_polling()
-    updater.idle()
+    app = Application.builder().token("YOUR_TELEGRAM_BOT_TOKEN").build()
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+    app.run_polling()
 
 if __name__ == "__main__":
     main()
