@@ -143,7 +143,17 @@ async def handle_message(update: Update, context: CallbackContext) -> None:
 
 # Start Handler
 async def start(update: Update, context: CallbackContext):
-    await update.message.reply_text("Welcome to the Bhagavad Gita Bot! Type a chapter number (1-18) to get a shloka, or 's' to get the last one. Add 'a' for audio.")
+    await update.message.reply_text(
+        "Jai Gurudatta!"
+        "Welcome to Srimad Bhagavadgita Random Practice chatbot.\n"
+        "Pressing 1-18 → Shows a random shloka from that chapter (without Uvacha).\n"
+        "Pressing 0 → Shows a random shloka from any chapter (without Uvacha).\n"
+        "Pressing s → Shows the full shloka (with Uvacha).\n"
+        "Pressing 1a-18a → Shows a random shloka from that chapter (without Uvacha) with audio.\n"
+        "Pressing 0a → Shows a random shloka from any chapter (without Uvacha) with audio.\n"
+        "Pressing sa → Shows the full shloka (with Uvacha) with audio."
+    )
+
 
 # Main Function
 def main():
