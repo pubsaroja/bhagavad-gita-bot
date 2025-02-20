@@ -6,7 +6,10 @@ from telegram.ext import Application, CommandHandler, MessageHandler, filters, C
 
 # ✅ Replace this with your actual bot token
 TOKEN = os.getenv("BOT_TOKEN")  
+WEBHOOK_URL = os.getenv("WEBHOOK_URL")
 
+if not TOKEN:
+    raise ValueError("❌ TELEGRAM_BOT_TOKEN is missing! Set it in Railway's environment variables.")
 # ✅ Corrected URLs for fetching text and audio
 HINDI_WITHOUT_UVACHA_URL = "https://raw.githubusercontent.com/pubsaroja/bhagavad-gita-bot/refs/heads/main/BG%20Hindi%20without%20Uvacha.txt"
 TELUGU_WITHOUT_UVACHA_URL = "https://raw.githubusercontent.com/pubsaroja/bhagavad-gita-bot/refs/heads/main/BG%20Telugu%20without%20Uvacha.txt"
