@@ -153,7 +153,17 @@ async def handle_message(update: Update, context: CallbackContext) -> None:
     if audio_urls:
         for audio_url in audio_urls:
             await update.message.reply_audio(audio_url)
-
+async def start(update: Update, context: CallbackContext) -> None:
+    await update.message.reply_text(
+        "📖 Welcome to the Bhagavad Gita Bot!\n\n"
+        "📌 Commands:\n"
+        "• Send a chapter number (1-18) to get a random shloka from that chapter.\n"
+        "• Send '0' to get a random shloka from any chapter.\n"
+        "• Send 's' to get the full shloka with 'Uvacha'.\n"
+        "• Send 'n', 'n1', 'n2'... to get the next shlokas in sequence.\n"
+        "• Append 'a' (e.g., '5a', 'sa', 'n1a') to get audio.\n"
+        "Happy learning! 🕉️"
+    )
 # Main Function
 def main():
     app = Application.builder().token(TOKEN).build()
