@@ -127,12 +127,18 @@ async def start(update: Update, context: CallbackContext):
         "Pressing n2a-n5a → Plays the next two to five shlokas with audio."
     )
 
-# Main Function
 def main():
     app = Application.builder().token(TOKEN).build()
     app.add_handler(CommandHandler("start", start))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
-    app.run_polling()
+
+    # Set webhook for Telegram
+    app.run_webhook(
+        listen="0.0.0.0",
+        port=int(os.getenv("PORT", 8443)),  # Railway assigns a port
+        webhook_url=f"{WEBHOOK_URL}/{TOKEN}"
+    )
 
 if __name__ == "__main__":
     main()
+
