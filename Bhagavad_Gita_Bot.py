@@ -42,20 +42,19 @@ def load_shlokas_from_github(url):
         if not line:
             continue
 
-        parts = line.split("\t", 1)  # Split only at the first tab
+        parts = line.split("\t", 1)
         if len(parts) == 2:
-            if current_number:  # Save previous verse before starting a new one
-                chapter, verse = current_number.split(".")[:2]  # Extract first two parts
+            if current_number:
+                chapter, verse = current_number.split(".")[:2]
                 if chapter not in shlokas:
                     shlokas[chapter] = []
                 shlokas[chapter].append((verse, "\n".join(current_text)))
 
-            current_number = parts[0]  # New verse number
-            current_text = [parts[1]]  # Start collecting new verse lines
+            current_number = parts[0]
+            current_text = [parts[1]]
         else:
-            current_text.append(line)  # Continuation of previous verse
+            current_text.append(line)
 
-    # Save the last verse
     if current_number:
         chapter, verse = current_number.split(".")[:2]
         if chapter not in shlokas:
@@ -103,7 +102,6 @@ def get_random_shloka(chapter: str, user_id: int):
     shloka_index = random.choice(available_shlokas)
     session_data[user_id]["used_shlokas"].add(shloka_index)
 
-    # Store last accessed shloka
     session_data[user_id]["last_shloka_index"] = shloka_index
     session_data[user_id]["last_chapter"] = chapter  
 
@@ -149,9 +147,8 @@ async def handle_message(update: Update, context: CallbackContext) -> None:
     if response:
         await update.message.reply_text(response)
 
-    # Ensure audio always plays if available
     if audio_url:
-        await update.message.reply_audio(audio_url)
+        await update.message.reply_audio(audio=audio_url)  # 🔥 FIX: Autoplay audio for ALL cases
 
 # Start Handler
 async def start(update: Update, context: CallbackContext):
