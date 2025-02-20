@@ -144,7 +144,7 @@ async def handle_message(update: Update, context: CallbackContext) -> None:
 # Start Handler
 async def start(update: Update, context: CallbackContext):
     await update.message.reply_text(
-        "Jai Gurudatta!"
+        "Jai Gurudatta!\n"
         "Welcome to Srimad Bhagavadgita Random Practice chatbot.\n"
         "Pressing 1-18 → Shows a random shloka from that chapter (without Uvacha).\n"
         "Pressing 0 → Shows a random shloka from any chapter (without Uvacha).\n"
