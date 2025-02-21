@@ -25,7 +25,7 @@ TELUGU_WITHOUT_UVACHA_URL = "https://raw.githubusercontent.com/pubsaroja/bhagava
 AUDIO_QUARTER_URL = "https://raw.githubusercontent.com/pubsaroja/bhagavad-gita-bot/main/AudioQuarter/"
 AUDIO_FULL_URL = "https://raw.githubusercontent.com/pubsaroja/bhagavad-gita-bot/main/AudioFull/"
 
-# Session data to track shown shlokas
+# Session data to track shown shlokas per chapter
 session_data = {}
 
 # Function to load shlokas from GitHub
@@ -89,7 +89,7 @@ def get_shloka(chapter: str, verse_idx: int, with_audio: bool = False):
 
 def get_random_shloka(chapter: str, user_id: int, with_audio: bool = False):
     if user_id not in session_data:
-        session_data[user_id] = {"used_shlokas": set(), "last_chapter": None, "last_index": None}
+        session_data[user_id] = {"used_shlokas": {}, "last_chapter": None, "last_index": None}
 
     chapter = str(chapter).strip()
     if chapter == "0":
@@ -98,16 +98,20 @@ def get_random_shloka(chapter: str, user_id: int, with_audio: bool = False):
     if chapter not in shlokas_hindi:
         return "❌ Invalid chapter number. Please enter a number between 0-18.", None
 
+    # Initialize used_shlokas for this chapter if not present
+    if chapter not in session_data[user_id]["used_shlokas"]:
+        session_data[user_id]["used_shlokas"][chapter] = set()
+
     available_shlokas = [
         i for i in range(len(shlokas_hindi[chapter]))
-        if i not in session_data[user_id]["used_shlokas"]
+        if i not in session_data[user_id]["used_shlokas"][chapter]
     ]
 
     if not available_shlokas:
-        return f"✅ All shlokas from chapter {chapter} have been shown!", None
+        return f"✅ All shlokas from chapter {chapter} have been shown! Type 'c' to continue with this chapter.", None
 
     shloka_index = random.choice(available_shlokas)
-    session_data[user_id]["used_shlokas"].add(shloka_index)
+    session_data[user_id]["used_shlokas"][chapter].add(shloka_index)
     session_data[user_id]["last_chapter"] = chapter
     session_data[user_id]["last_index"] = shloka_index
 
@@ -215,6 +219,17 @@ async def handle_message(update: Update, context: CallbackContext):
                 if audio_url:
                     await update.message.reply_audio(audio_url)
 
+    elif user_text == "c":  # New 'continue' option
+        if user_id in session_data and session_data[user_id]["last_chapter"] is not None:
+            chapter = session_data[user_id]["last_chapter"]
+            if chapter in session_data[user_id]["used_shlokas"]:
+                session_data[user_id]["used_shlokas"][chapter].clear()
+                await update.message.reply_text(f"✅ Chapter {chapter} has been reset. You can now get random shlokas again!")
+            else:
+                await update.message.reply_text("❌ No shlokas have been shown from this chapter yet!")
+        else:
+            await update.message.reply_text("❌ Please request a shloka first!")
+            
     else:
         await update.message.reply_text(
             "❌ Invalid input. Please use:\n"
@@ -223,6 +238,7 @@ async def handle_message(update: Update, context: CallbackContext):
             "n: Next shloka\n"
             "n2-n5: Multiple next shlokas\n"
             "p: Previous 2, current & next 2 shlokas\n"
+            "c: Continue with current chapter\n"
             "Add 'a' for audio (e.g., '1a', 'na')"
         )
 
@@ -238,7 +254,8 @@ async def start(update: Update, context: CallbackContext):
         "na → Next with audio\n"
         "n2-n5 → Multiple next shlokas\n"
         "p → Previous 2, current & next 2\n"
-        "pa → Same with audio"
+        "pa → Same with audio\n"
+        "c → Continue with current chapter"
     )
 
 def main():
