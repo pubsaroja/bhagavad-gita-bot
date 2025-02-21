@@ -221,7 +221,8 @@ async def handle_message(update: Update, context: CallbackContext):
         chapter = session_data[user_id]["last_chapter"]
         current_idx = session_data[user_id]["last_index"]
         
-        # Adjust start_idx to go back 2 shlokas, potentially into previous chapters
+        # Calculate starting point (2 shlokas back)
+        start_chapter = chapter
         start_idx = current_idx - 2
         responses = []
         audio_urls = []
@@ -229,14 +230,14 @@ async def handle_message(update: Update, context: CallbackContext):
         last_idx = current_idx
         
         # Handle going backwards across chapters
-        while start_idx < 0 and int(chapter) > 1:
-            chapter = str(int(chapter) - 1)
-            start_idx += len(full_shlokas_hindi[chapter])
+        while start_idx < 0 and int(start_chapter) > 1:
+            start_chapter = str(int(start_chapter) - 1)
+            start_idx += len(full_shlokas_hindi[start_chapter])
         
-        # Fetch shlokas from start_idx to current_idx + 2
+        # Fetch 5 continuous shlokas (prev 2, current, next 2)
+        chapter = start_chapter
         idx = max(0, start_idx)
-        chapter = str(chapter)
-        for _ in range(5):  # Previous 2, current, next 2 = 5 shlokas
+        for _ in range(5):  # 5 shlokas total
             response, audio_url, new_chapter, new_idx = get_shloka(chapter, idx, with_audio)
             if response:
                 responses.append(response)
