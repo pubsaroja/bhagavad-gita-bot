@@ -127,6 +127,22 @@ def get_random_shloka(chapter: str, user_id: int, with_audio: bool = False):
     
     return f"{chapter}.{verse}\n{shloka_hindi}\n{shloka_telugu}", audio_link
 
+def get_specific_shloka(chapter: str, verse: str, user_id: int, with_audio: bool = False):
+    if user_id not in session_data:
+        session_data[user_id] = {"used_shlokas": {}, "last_chapter": None, "last_index": None}
+
+    chapter = str(chapter)
+    verse_idx = int(verse) - 1  # Convert to 0-based index
+    
+    if chapter not in full_shlokas_hindi or verse_idx < 0 or verse_idx >= len(full_shlokas_hindi[chapter]):
+        return "❌ Invalid chapter or verse number. Use format 'chapter.verse' (e.g., 18.5).", None
+    
+    response, audio_url, new_chapter, new_idx = get_shloka(chapter, verse_idx, with_audio)
+    if response:
+        session_data[user_id]["last_chapter"] = new_chapter
+        session_data[user_id]["last_index"] = new_idx
+    return response, audio_url
+
 def get_last_shloka(user_id: int, with_audio: bool = False):
     if user_id in session_data and session_data[user_id]["last_index"] is not None:
         chapter = session_data[user_id]["last_chapter"]
@@ -148,7 +164,19 @@ async def handle_message(update: Update, context: CallbackContext):
     if with_audio:
         user_text = user_text[:-1]
 
-    if user_text.isdigit():
+    # Handle specific shloka request (e.g., "18.5")
+    if "." in user_text:
+        try:
+            chapter, verse = user_text.split(".")
+            response, audio_url = get_specific_shloka(chapter, verse, user_id, with_audio)
+            await update.message.reply_text(response)
+            if audio_url:
+                await update.message.reply_audio(audio_url)
+        except ValueError:
+            await update.message.reply_text("❌ Invalid format. Use 'chapter.verse' (e.g., 18.5).")
+        return
+            
+    elif user_text.isdigit():
         response, audio_url = get_random_shloka(user_text, user_id, with_audio)
         await update.message.reply_text(response)
         if audio_url:
@@ -192,8 +220,7 @@ async def handle_message(update: Update, context: CallbackContext):
         
         # Fetch `count` consecutive shlokas
         for i in range(count):
-            next_idx = current_idx + i + 1
-            response, audio_url, new_chapter, new_idx = get_shloka(last_chapter, next_idx - current_idx + last_idx, with_audio)
+            response, audio_url, new_chapter, new_idx = get_shloka(last_chapter, last_idx + 1, with_audio)
             if response:
                 responses.append(response)
                 if audio_url:
@@ -272,13 +299,14 @@ async def handle_message(update: Update, context: CallbackContext):
     else:
         await update.message.reply_text(
             "❌ Invalid input. Please use:\n"
-            "0-18: Random shloka\n"
+            "0-18: Random shloka from chapter\n"
+            "chapter.verse: Specific shloka (e.g., 18.5)\n"
             "s: Last full shloka\n"
             "n: Next shloka\n"
             "n2-n5: Multiple next shlokas\n"
             "p: Previous 2, current & next 2 shlokas\n"
             "c: Continue with current chapter\n"
-            "Add 'a' for audio (e.g., '1a', 'na')"
+            "Add 'a' for audio (e.g., '1a', '18.5a')"
         )
 
 async def start(update: Update, context: CallbackContext):
@@ -286,7 +314,9 @@ async def start(update: Update, context: CallbackContext):
         "Jai Gurudatta!\n"
         "Welcome to Srimad Bhagavadgita Random Practice chatbot.\n"
         "0-18 → Random shloka from chapter\n"
-        "0a-18a → With audio\n"
+        "chapter.verse → Specific shloka (e.g., 18.5)\n"
+        "0a-18a → Random with audio\n"
+        "'chapter.verse'a → Specific with audio (e.g., 18.5a)\n"
         "s → Full last shloka\n"
         "sa → Full last shloka with audio\n"
         "n → Next shloka\n"
