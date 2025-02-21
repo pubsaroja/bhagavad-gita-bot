@@ -182,7 +182,7 @@ async def handle_message(update: Update, context: CallbackContext):
         if audio_url:
             await update.message.reply_audio(audio_url)
             
-    elif user_text == "s":
+    elif user_text == "f":  # Changed from 's' to 'f'
         response, audio_url = get_last_shloka(user_id, with_audio)
         await update.message.reply_text(response)
         if audio_url:
@@ -301,7 +301,7 @@ async def handle_message(update: Update, context: CallbackContext):
             "❌ Invalid input. Please use:\n"
             "0-18: Random shloka from chapter\n"
             "chapter.verse: Specific shloka (e.g., 18.5)\n"
-            "s: Last full shloka\n"
+            "f: Last full shloka\n"
             "n: Next shloka\n"
             "n2-n5: Multiple next shlokas\n"
             "p: Previous 2, current & next 2 shlokas\n"
@@ -317,8 +317,8 @@ async def start(update: Update, context: CallbackContext):
         "chapter.verse → Specific shloka (e.g., 18.5)\n"
         "0a-18a → Random with audio\n"
         "'chapter.verse'a → Specific with audio (e.g., 18.5a)\n"
-        "s → Full last shloka\n"
-        "sa → Full last shloka with audio\n"
+        "f → Full last shloka\n"
+        "fa → Full last shloka with audio\n"
         "n → Next shloka\n"
         "na → Next with audio\n"
         "n2-n5 → Multiple next shlokas\n"
