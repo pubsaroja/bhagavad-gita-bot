@@ -76,16 +76,20 @@ full_shlokas_telugu = load_shlokas_from_github(TELUGU_WITH_UVACHA_URL)
 
 def get_shloka(chapter: str, verse_idx: int, with_audio: bool = False):
     chapter = str(chapter)
-    if chapter not in full_shlokas_hindi or verse_idx >= len(full_shlokas_hindi[chapter]):
-        return None, None
-    
-    verse, shloka_hindi = full_shlokas_hindi[chapter][verse_idx]
-    _, shloka_telugu = full_shlokas_telugu[chapter][verse_idx]
-    
-    audio_file_name = f"{chapter}.{verse}.mp3"
-    audio_link = f"{AUDIO_FULL_URL}{audio_file_name}" if with_audio else None
-    
-    return f"{chapter}.{verse}\n{shloka_hindi}\n{shloka_telugu}", audio_link
+    while chapter in full_shlokas_hindi:
+        if verse_idx < len(full_shlokas_hindi[chapter]):
+            verse, shloka_hindi = full_shlokas_hindi[chapter][verse_idx]
+            _, shloka_telugu = full_shlokas_telugu[chapter][verse_idx]
+            
+            audio_file_name = f"{chapter}.{verse}.mp3"
+            audio_link = f"{AUDIO_FULL_URL}{audio_file_name}" if with_audio else None
+            
+            return f"{chapter}.{verse}\n{shloka_hindi}\n{shloka_telugu}", audio_link, chapter, verse_idx
+        else:
+            # Move to the next chapter
+            verse_idx = verse_idx - len(full_shlokas_hindi[chapter])
+            chapter = str(int(chapter) + 1)
+    return None, None, None, None
 
 def get_random_shloka(chapter: str, user_id: int, with_audio: bool = False):
     if user_id not in session_data:
@@ -160,14 +164,15 @@ async def handle_message(update: Update, context: CallbackContext):
         if user_id in session_data and session_data[user_id]["last_index"] is not None:
             chapter = session_data[user_id]["last_chapter"]
             next_idx = session_data[user_id]["last_index"] + 1
-            response, audio_url = get_shloka(chapter, next_idx, with_audio)
+            response, audio_url, new_chapter, new_idx = get_shloka(chapter, next_idx, with_audio)
             if response:
-                session_data[user_id]["last_index"] = next_idx
+                session_data[user_id]["last_chapter"] = new_chapter
+                session_data[user_id]["last_index"] = new_idx
                 await update.message.reply_text(response)
                 if audio_url:
                     await update.message.reply_audio(audio_url)
             else:
-                await update.message.reply_text("❌ No next shloka available!")
+                await update.message.reply_text("❌ No more shlokas available!")
         else:
             await update.message.reply_text("❌ Please request a shloka first!")
             
@@ -182,18 +187,25 @@ async def handle_message(update: Update, context: CallbackContext):
         
         responses = []
         audio_urls = []
+        last_chapter = chapter
+        last_idx = current_idx
+        
         for i in range(count):
             next_idx = current_idx + i + 1
-            response, audio_url = get_shloka(chapter, next_idx, with_audio)
+            response, audio_url, new_chapter, new_idx = get_shloka(chapter, next_idx, with_audio)
             if response:
                 responses.append(response)
                 if audio_url:
                     audio_urls.append(audio_url)
+                last_chapter = new_chapter
+                last_idx = new_idx
+                chapter = new_chapter  # Update chapter for the next iteration
             else:
                 break
                 
         if responses:
-            session_data[user_id]["last_index"] = current_idx + len(responses)
+            session_data[user_id]["last_chapter"] = last_chapter
+            session_data[user_id]["last_index"] = last_idx
             for response in responses:
                 await update.message.reply_text(response)
             for audio_url in audio_urls:
@@ -209,17 +221,43 @@ async def handle_message(update: Update, context: CallbackContext):
         chapter = session_data[user_id]["last_chapter"]
         current_idx = session_data[user_id]["last_index"]
         
-        start_idx = max(0, current_idx - 2)
-        end_idx = min(len(full_shlokas_hindi[chapter]), current_idx + 3)
+        # Adjust start_idx to go back 2 shlokas, potentially into previous chapters
+        start_idx = current_idx - 2
+        responses = []
+        audio_urls = []
+        last_chapter = chapter
+        last_idx = current_idx
         
-        for idx in range(start_idx, end_idx):
-            response, audio_url = get_shloka(chapter, idx, with_audio)
+        # Handle going backwards across chapters
+        while start_idx < 0 and int(chapter) > 1:
+            chapter = str(int(chapter) - 1)
+            start_idx += len(full_shlokas_hindi[chapter])
+        
+        # Fetch shlokas from start_idx to current_idx + 2
+        idx = max(0, start_idx)
+        chapter = str(chapter)
+        for _ in range(5):  # Previous 2, current, next 2 = 5 shlokas
+            response, audio_url, new_chapter, new_idx = get_shloka(chapter, idx, with_audio)
             if response:
-                await update.message.reply_text(response)
+                responses.append(response)
                 if audio_url:
-                    await update.message.reply_audio(audio_url)
+                    audio_urls.append(audio_url)
+                last_chapter = new_chapter
+                last_idx = new_idx
+                chapter = new_chapter
+                idx = new_idx + 1
+            else:
+                break
+        
+        if responses:
+            session_data[user_id]["last_chapter"] = last_chapter
+            session_data[user_id]["last_index"] = last_idx
+            for response in responses:
+                await update.message.reply_text(response)
+            for audio_url in audio_urls:
+                await update.message.reply_audio(audio_url)
 
-    elif user_text == "c":  # New 'continue' option
+    elif user_text == "c":
         if user_id in session_data and session_data[user_id]["last_chapter"] is not None:
             chapter = session_data[user_id]["last_chapter"]
             if chapter in session_data[user_id]["used_shlokas"]:
