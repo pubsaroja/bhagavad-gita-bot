@@ -182,13 +182,13 @@ async def handle_message(update: Update, context: CallbackContext):
         if audio_url:
             await update.message.reply_audio(audio_url)
             
-    elif user_text == "f":  # Changed from 's' to 'f'
+    elif user_text == "f":
         response, audio_url = get_last_shloka(user_id, with_audio)
         await update.message.reply_text(response)
         if audio_url:
             await update.message.reply_audio(audio_url)
             
-    elif user_text == "n":
+    elif user_text == "n1":  # Changed from 'n' to 'n1'
         if user_id in session_data and session_data[user_id]["last_index"] is not None:
             chapter = session_data[user_id]["last_chapter"]
             next_idx = session_data[user_id]["last_index"] + 1
@@ -302,7 +302,7 @@ async def handle_message(update: Update, context: CallbackContext):
             "0-18: Random shloka from chapter\n"
             "chapter.verse: Specific shloka (e.g., 18.5)\n"
             "f: Last full shloka\n"
-            "n: Next shloka\n"
+            "n1: Next shloka\n"  # Changed from 'n'
             "n2-n5: Multiple next shlokas\n"
             "p: Previous 2, current & next 2 shlokas\n"
             "c: Continue with current chapter\n"
@@ -319,8 +319,8 @@ async def start(update: Update, context: CallbackContext):
         "'chapter.verse'a → Specific with audio (e.g., 18.5a)\n"
         "f → Full last shloka\n"
         "fa → Full last shloka with audio\n"
-        "n → Next shloka\n"
-        "na → Next with audio\n"
+        "n1 → Next shloka\n"  # Changed from 'n'
+        "n1a → Next shloka with audio\n"  # Changed from 'na'
         "n2-n5 → Multiple next shlokas\n"
         "p → Previous 2, current & next 2\n"
         "pa → Same with audio\n"
