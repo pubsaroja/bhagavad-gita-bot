@@ -298,15 +298,20 @@ async def handle_message(update: Update, context: CallbackContext):
             
     else:
         await update.message.reply_text(
-            "❌ Invalid input. Please use:\n"
-            "0-18: Random shloka from chapter\n"
-            "chapter.verse: Specific shloka (e.g., 18.5)\n"
-            "f: Last full shloka\n"
-            "n1: Next shloka\n"  # Changed from 'n'
-            "n2-n5: Multiple next shlokas\n"
-            "p: Previous 2, current & next 2 shlokas\n"
-            "c: Continue with current chapter\n"
-            "Add 'a' for audio (e.g., '1a', '18.5a')"
+            "❌ Invalid input.\n"
+            "✨ Please use:\n"
+            "- 0-18 → Get a random shloka from a chapter\n"
+            "- chapter.verse → Get a specific shloka (e.g., 18.5)\n"
+            "- Add 'a' for audio (e.g., 0a, 18.5a)\n\n"
+            "🎯 Navigation:\n"
+            "- f → Full version of the last shloka\n"
+            "- fa → Full version with audio\n"
+            "- n1 → Next shloka\n"
+            "- n1a → Next shloka with audio\n"
+            "- n2-n5 → Next 2-5 shlokas\n"
+            "- p → Previous 2, current, and next 2 shlokas\n"
+            "- pa → Same with audio\n"
+            "- c → Reset current chapter for more random shlokas"
         )
 
 async def start(update: Update, context: CallbackContext):
