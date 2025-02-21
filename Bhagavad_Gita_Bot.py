@@ -190,16 +190,16 @@ async def handle_message(update: Update, context: CallbackContext):
         last_chapter = chapter
         last_idx = current_idx
         
+        # Fetch `count` consecutive shlokas
         for i in range(count):
             next_idx = current_idx + i + 1
-            response, audio_url, new_chapter, new_idx = get_shloka(chapter, next_idx, with_audio)
+            response, audio_url, new_chapter, new_idx = get_shloka(last_chapter, next_idx - current_idx + last_idx, with_audio)
             if response:
                 responses.append(response)
                 if audio_url:
                     audio_urls.append(audio_url)
                 last_chapter = new_chapter
                 last_idx = new_idx
-                chapter = new_chapter  # Update chapter for the next iteration
             else:
                 break
                 
