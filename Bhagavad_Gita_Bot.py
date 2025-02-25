@@ -107,12 +107,12 @@ def get_random_shloka(chapter: str, user_id: int, with_audio: bool = False):
 def get_specific_shloka(chapter: str, verse: str, with_audio: bool = False):
     chapter = str(chapter)
     verse = str(verse)
-    if chapter not in full_shlokas_hindi:
+    if chapter not in shlokas_hindi:  # Use without Uvacha
         return "❌ Invalid chapter number. Please enter a number between 0-18.", None
-    for idx, (v, _) in enumerate(full_shlokas_hindi[chapter]):
+    for idx, (v, _) in enumerate(shlokas_hindi[chapter]):
         if v == verse:
-            verse_text, shloka_hindi = full_shlokas_hindi[chapter][idx]
-            _, shloka_telugu = full_shlokas_telugu[chapter][idx]
+            verse_text, shloka_hindi = shlokas_hindi[chapter][idx]  # Without Uvacha
+            _, shloka_telugu = shlokas_telugu[chapter][idx]  # Without Uvacha
             audio_file_name = f"{chapter}.{int(verse)}.mp3"
             audio_link = f"{AUDIO_QUARTER_URL}{audio_file_name}" if with_audio else None
             logger.info(f"get_specific_shloka - Chapter: {chapter}, Verse: {verse}, Audio: {audio_link}")
@@ -123,8 +123,8 @@ def get_last_shloka(user_id: int, with_audio: bool = False):
     if user_id in session_data and session_data[user_id]["last_index"] is not None:
         chapter = session_data[user_id]["last_chapter"]
         shloka_index = session_data[user_id]["last_index"]
-        verse, shloka_hindi = full_shlokas_hindi[chapter][shloka_index]
-        _, shloka_telugu = full_shlokas_telugu[chapter][shloka_index]
+        verse, shloka_hindi = full_shlokas_hindi[chapter][shloka_index]  # With Uvacha
+        _, shloka_telugu = full_shlokas_telugu[chapter][shloka_index]  # With Uvacha
         audio_file_name = f"{chapter}.{int(verse)}.mp3"
         audio_link = f"{AUDIO_QUARTER_URL}{audio_file_name}" if with_audio else None
         logger.info(f"Generated audio URL in get_last_shloka: {audio_link}")
@@ -157,7 +157,7 @@ async def handle_message(update: Update, context: CallbackContext):
         await update.message.reply_text(response)
         if audio_url:
             await update.message.reply_audio(audio_url)
-    elif user_text == "f":  # Changed from "s" to "f"
+    elif user_text == "f":
         response, audio_url = get_last_shloka(user_id, with_audio)
         await update.message.reply_text(response)
         if audio_url:
@@ -177,31 +177,31 @@ async def handle_message(update: Update, context: CallbackContext):
         else:
             await update.message.reply_text("❌ Please request a shloka first!")
     elif user_text in ["n2", "n3", "n4", "n5"]:
-        if user_id not in session_data or session_data[user_id]["last_index"] is None:
-            await update.message.reply_text("❌ Please request a shloka first!")
-            return
-        chapter = session_data[user_id]["last_chapter"]
-        current_idx = session_data[user_id]["last_index"]
-        count = int(user_text[1:])
-        responses = []
-        audio_urls = []
-        for i in range(count):
-            next_idx = current_idx + i + 1
-            response, audio_url = get_shloka(chapter, next_idx, with_audio)
-            if response:
-                responses.append(response)
-                if audio_url:
-                    audio_urls.append(audio_url)
+        if user_id in session_data and session_data[user_id]["last_index"] is not None:
+            chapter = session_data[user_id]["last_chapter"]
+            current_idx = session_data[user_id]["last_index"]
+            count = int(user_text[1:])
+            responses = []
+            audio_urls = []
+            for i in range(count):
+                next_idx = current_idx + i + 1
+                response, audio_url = get_shloka(chapter, next_idx, with_audio)
+                if response:
+                    responses.append(response)
+                    if audio_url:
+                        audio_urls.append(audio_url)
+                else:
+                    break
+            if responses:
+                session_data[user_id]["last_index"] = current_idx + len(responses)
+                for response in responses:
+                    await update.message.reply_text(response)
+                for audio_url in audio_urls:
+                    await update.message.reply_audio(audio_url)
             else:
-                break
-        if responses:
-            session_data[user_id]["last_index"] = current_idx + len(responses)
-            for response in responses:
-                await update.message.reply_text(response)
-            for audio_url in audio_urls:
-                await update.message.reply_audio(audio_url)
+                await update.message.reply_text("❌ No more shlokas available!")
         else:
-            await update.message.reply_text("❌ No more shlokas available!")
+            await update.message.reply_text("❌ Please request a shloka first!")
     elif user_text in ["p", "pa"]:
         if user_id in session_data and session_data[user_id]["last_index"] is not None:
             chapter = session_data[user_id]["last_chapter"]
@@ -221,7 +221,7 @@ async def handle_message(update: Update, context: CallbackContext):
             "❌ Invalid input. Please use:\n"
             "0-18: Random shloka\n"
             "chapter.verse: Specific shloka (e.g., 18.1)\n"
-            "f: Last full shloka\n"  # Changed from "s" to "f"
+            "f: Last full shloka\n"
             "n1: Next shloka\n"
             "n2-n5: Multiple next shlokas\n"
             "p: Previous 2, current & next 2 shlokas\n"
@@ -236,8 +236,8 @@ async def start(update: Update, context: CallbackContext):
         "0-18 → Random shloka from chapter\n"
         "0a-18a → With audio\n"
         "chapter.verse → Specific shloka (e.g., 18.1, 18.1a)\n"
-        "f → Full last shloka\n"  # Changed from "s" to "f"
-        "fa → Full last shloka with audio\n"  # Changed from "sa" to "fa"
+        "f → Full last shloka\n"
+        "fa → Full last shloka with audio\n"
         "n1 → Next shloka\n"
         "n1a → Next with audio\n"
         "n2-n5 → Multiple next shlokas\n"
