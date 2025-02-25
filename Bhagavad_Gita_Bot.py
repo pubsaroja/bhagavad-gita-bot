@@ -104,10 +104,12 @@ def get_random_shloka(chapter: str, user_id: int, with_audio: bool = False):
     logger.info(f"Generated audio URL in get_random_shloka: {audio_link}")
     return f"{chapter}.{verse}\n{shloka_hindi}\n{shloka_telugu}", audio_link
 
-def get_specific_shloka(chapter: str, verse: str, with_audio: bool = False):
+def get_specific_shloka(chapter: str, verse: str, user_id: int, with_audio: bool = False):
+    if user_id not in session_data:
+        session_data[user_id] = {"used_shlokas": {}, "last_chapter": None, "last_index": None}
     chapter = str(chapter)
     verse = str(verse)
-    if chapter not in shlokas_hindi:  # Use without Uvacha
+    if chapter not in shlokas_hindi:
         return "❌ Invalid chapter number. Please enter a number between 0-18.", None
     for idx, (v, _) in enumerate(shlokas_hindi[chapter]):
         if v == verse:
@@ -116,6 +118,13 @@ def get_specific_shloka(chapter: str, verse: str, with_audio: bool = False):
             audio_file_name = f"{chapter}.{int(verse)}.mp3"
             audio_link = f"{AUDIO_QUARTER_URL}{audio_file_name}" if with_audio else None
             logger.info(f"get_specific_shloka - Chapter: {chapter}, Verse: {verse}, Audio: {audio_link}")
+            # Update session data
+            session_data[user_id]["last_chapter"] = chapter
+            # Find corresponding index in full_shlokas for consistency with "f"
+            for full_idx, (fv, _) in enumerate(full_shlokas_hindi[chapter]):
+                if fv == verse:
+                    session_data[user_id]["last_index"] = full_idx
+                    break
             return f"{chapter}.{verse}\n{shloka_hindi}\n{shloka_telugu}", audio_link
     return f"❌ Shloka {chapter}.{verse} not found!", None
 
@@ -144,7 +153,7 @@ async def handle_message(update: Update, context: CallbackContext):
         try:
             chapter, verse = user_text.split(".", 1)
             if chapter.isdigit() and verse.isdigit():
-                response, audio_url = get_specific_shloka(chapter, verse, with_audio)
+                response, audio_url = get_specific_shloka(chapter, verse, user_id, with_audio)
                 await update.message.reply_text(response)
                 if audio_url:
                     await update.message.reply_audio(audio_url)
