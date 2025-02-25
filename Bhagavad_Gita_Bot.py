@@ -34,11 +34,9 @@ def load_shlokas_from_github(url):
     if response.status_code != 200:
         logger.error(f"⚠️ Error fetching data from {url} (Status Code: {response.status_code})")
         return {}
-
     shlokas = {}
     current_number = None
     current_text = []
-
     lines = response.text.split("\n")
     for line in lines:
         line = line.strip()
@@ -106,6 +104,21 @@ def get_random_shloka(chapter: str, user_id: int, with_audio: bool = False):
     logger.info(f"Generated audio URL in get_random_shloka: {audio_link}")
     return f"{chapter}.{verse}\n{shloka_hindi}\n{shloka_telugu}", audio_link
 
+def get_specific_shloka(chapter: str, verse: str, with_audio: bool = False):
+    chapter = str(chapter)
+    verse = str(verse)
+    if chapter not in full_shlokas_hindi:
+        return "❌ Invalid chapter number. Please enter a number between 0-18.", None
+    for idx, (v, _) in enumerate(full_shlokas_hindi[chapter]):
+        if v == verse:
+            verse_text, shloka_hindi = full_shlokas_hindi[chapter][idx]
+            _, shloka_telugu = full_shlokas_telugu[chapter][idx]
+            audio_file_name = f"{chapter}.{int(verse)}.mp3"
+            audio_link = f"{AUDIO_FULL_URL}{audio_file_name}" if with_audio else None
+            logger.info(f"get_specific_shloka - Chapter: {chapter}, Verse: {verse}, Audio: {audio_link}")
+            return f"{chapter}.{verse}\n{shloka_hindi}\n{shloka_telugu}", audio_link
+    return f"❌ Shloka {chapter}.{verse} not found!", None
+
 def get_last_shloka(user_id: int, with_audio: bool = False):
     if user_id in session_data and session_data[user_id]["last_index"] is not None:
         chapter = session_data[user_id]["last_chapter"]
@@ -122,16 +135,22 @@ async def handle_message(update: Update, context: CallbackContext):
     user_text = update.message.text.strip().lower()
     user_id = update.message.from_user.id
     
-    # Hardcoded test for 18.1a
-    if user_text == "18.1a":
-        await update.message.reply_text("Testing hardcoded URL for 18.1.mp3")
-        await update.message.reply_audio("https://raw.githubusercontent.com/pubsaroja/bhagavad-gita-bot/main/AudioFull/18.1.mp3")
-        logger.info("Sent hardcoded URL for 18.1.mp3")
-        return
-    
     with_audio = user_text.endswith("a")
     if with_audio:
         user_text = user_text[:-1]
+    
+    # Check for specific shloka request (e.g., "18.1")
+    if "." in user_text:
+        try:
+            chapter, verse = user_text.split(".", 1)
+            if chapter.isdigit() and verse.isdigit():
+                response, audio_url = get_specific_shloka(chapter, verse, with_audio)
+                await update.message.reply_text(response)
+                if audio_url:
+                    await update.message.reply_audio(audio_url)
+                return
+        except ValueError:
+            pass  # Fall back to other logic if parsing fails
     
     if user_text.isdigit():
         response, audio_url = get_random_shloka(user_text, user_id, with_audio)
@@ -201,11 +220,12 @@ async def handle_message(update: Update, context: CallbackContext):
         await update.message.reply_text(
             "❌ Invalid input. Please use:\n"
             "0-18: Random shloka\n"
+            "chapter.verse: Specific shloka (e.g., 18.1)\n"
             "s: Last full shloka\n"
             "n: Next shloka\n"
             "n2-n5: Multiple next shlokas\n"
             "p: Previous 2, current & next 2 shlokas\n"
-            "Add 'a' for audio (e.g., '1a', 'na', '18.1a')\n"
+            "Add 'a' for audio (e.g., '1a', '18.1a')\n"
             "Use /reset to start fresh"
         )
 
@@ -215,6 +235,7 @@ async def start(update: Update, context: CallbackContext):
         "Welcome to Srimad Bhagavadgita Random Practice chatbot.\n"
         "0-18 → Random shloka from chapter\n"
         "0a-18a → With audio\n"
+        "chapter.verse → Specific shloka (e.g., 18.1, 18.1a)\n"
         "s → Full last shloka\n"
         "sa → Full last shloka with audio\n"
         "n → Next shloka\n"
