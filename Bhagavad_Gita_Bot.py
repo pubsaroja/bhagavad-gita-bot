@@ -159,7 +159,9 @@ def get_last_shloka(user_id: int, with_audio: bool = False):
 async def handle_message(update: Update, context: CallbackContext):
     user_text = update.message.text.strip().lower()
     user_id = update.message.from_user.id
-
+    if user_text == "18a":  # Temporary test
+    await update.message.reply_audio("https://raw.githubusercontent.com/pubsaroja/bhagavad-gita-bot/main/AudioFull/18.1.mp3")
+    return
     with_audio = user_text.endswith("a")
     if with_audio:
         user_text = user_text[:-1]
