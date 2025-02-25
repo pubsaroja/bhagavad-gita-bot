@@ -315,6 +315,11 @@ async def handle_message(update: Update, context: CallbackContext):
         )
 
 async def start(update: Update, context: CallbackContext):
+    user_text = update.message.text.strip().lower()
+    user_id = update.message.from_user.id
+    if user_text == "18a":  # Temporary test
+        await update.message.reply_audio("https://raw.githubusercontent.com/pubsaroja/bhagavad-gita-bot/main/AudioFull/18.1.mp3")
+        return
     await update.message.reply_text(
 "Jai Gurudatta! 🙏\n"
         "Welcome to the Srimad Bhagavad Gita Random Practice Bot!\n\n"
