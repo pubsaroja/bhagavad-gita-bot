@@ -74,7 +74,7 @@ def get_shloka(chapter: str, verse_idx: int, with_audio: bool = False):
     logger.info(f"get_shloka - Chapter: {chapter}, Verse: {verse}, Index: {verse_idx}")
     _, shloka_telugu = full_shlokas_telugu[chapter][verse_idx]
     audio_file_name = f"{chapter}.{int(verse)}.mp3"
-    audio_link = f"{AUDIO_FULL_URL}{audio_file_name}" if with_audio else None
+    audio_link = f"{AUDIO_QUARTER_URL}{audio_file_name}" if with_audio else None  # Changed to AudioQuarter
     logger.info(f"Generated audio URL in get_shloka: {audio_link}")
     return f"{chapter}.{verse}\n{shloka_hindi}\n{shloka_telugu}", audio_link
 
@@ -114,7 +114,7 @@ def get_specific_shloka(chapter: str, verse: str, with_audio: bool = False):
             verse_text, shloka_hindi = full_shlokas_hindi[chapter][idx]
             _, shloka_telugu = full_shlokas_telugu[chapter][idx]
             audio_file_name = f"{chapter}.{int(verse)}.mp3"
-            audio_link = f"{AUDIO_FULL_URL}{audio_file_name}" if with_audio else None
+            audio_link = f"{AUDIO_QUARTER_URL}{audio_file_name}" if with_audio else None  # Changed to AudioQuarter
             logger.info(f"get_specific_shloka - Chapter: {chapter}, Verse: {verse}, Audio: {audio_link}")
             return f"{chapter}.{verse}\n{shloka_hindi}\n{shloka_telugu}", audio_link
     return f"❌ Shloka {chapter}.{verse} not found!", None
@@ -126,7 +126,7 @@ def get_last_shloka(user_id: int, with_audio: bool = False):
         verse, shloka_hindi = full_shlokas_hindi[chapter][shloka_index]
         _, shloka_telugu = full_shlokas_telugu[chapter][shloka_index]
         audio_file_name = f"{chapter}.{int(verse)}.mp3"
-        audio_link = f"{AUDIO_FULL_URL}{audio_file_name}" if with_audio else None
+        audio_link = f"{AUDIO_QUARTER_URL}{audio_file_name}" if with_audio else None  # Changed to AudioQuarter
         logger.info(f"Generated audio URL in get_last_shloka: {audio_link}")
         return f"{chapter}.{verse}\n{shloka_hindi}\n{shloka_telugu}", audio_link
     return "❌ No previous shloka found. Please request one first!", None
@@ -150,7 +150,7 @@ async def handle_message(update: Update, context: CallbackContext):
                     await update.message.reply_audio(audio_url)
                 return
         except ValueError:
-            pass  # Fall back to other logic if parsing fails
+            pass
     
     if user_text.isdigit():
         response, audio_url = get_random_shloka(user_text, user_id, with_audio)
