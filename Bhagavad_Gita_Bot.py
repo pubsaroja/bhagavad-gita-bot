@@ -74,7 +74,7 @@ def get_shloka(chapter: str, verse_idx: int, with_audio: bool = False):
     logger.info(f"get_shloka - Chapter: {chapter}, Verse: {verse}, Index: {verse_idx}")
     _, shloka_telugu = full_shlokas_telugu[chapter][verse_idx]
     audio_file_name = f"{chapter}.{int(verse)}.mp3"
-    audio_link = f"{AUDIO_QUARTER_URL}{audio_file_name}" if with_audio else None  # Changed to AudioQuarter
+    audio_link = f"{AUDIO_QUARTER_URL}{audio_file_name}" if with_audio else None
     logger.info(f"Generated audio URL in get_shloka: {audio_link}")
     return f"{chapter}.{verse}\n{shloka_hindi}\n{shloka_telugu}", audio_link
 
@@ -114,7 +114,7 @@ def get_specific_shloka(chapter: str, verse: str, with_audio: bool = False):
             verse_text, shloka_hindi = full_shlokas_hindi[chapter][idx]
             _, shloka_telugu = full_shlokas_telugu[chapter][idx]
             audio_file_name = f"{chapter}.{int(verse)}.mp3"
-            audio_link = f"{AUDIO_QUARTER_URL}{audio_file_name}" if with_audio else None  # Changed to AudioQuarter
+            audio_link = f"{AUDIO_QUARTER_URL}{audio_file_name}" if with_audio else None
             logger.info(f"get_specific_shloka - Chapter: {chapter}, Verse: {verse}, Audio: {audio_link}")
             return f"{chapter}.{verse}\n{shloka_hindi}\n{shloka_telugu}", audio_link
     return f"❌ Shloka {chapter}.{verse} not found!", None
@@ -126,7 +126,7 @@ def get_last_shloka(user_id: int, with_audio: bool = False):
         verse, shloka_hindi = full_shlokas_hindi[chapter][shloka_index]
         _, shloka_telugu = full_shlokas_telugu[chapter][shloka_index]
         audio_file_name = f"{chapter}.{int(verse)}.mp3"
-        audio_link = f"{AUDIO_QUARTER_URL}{audio_file_name}" if with_audio else None  # Changed to AudioQuarter
+        audio_link = f"{AUDIO_QUARTER_URL}{audio_file_name}" if with_audio else None
         logger.info(f"Generated audio URL in get_last_shloka: {audio_link}")
         return f"{chapter}.{verse}\n{shloka_hindi}\n{shloka_telugu}", audio_link
     return "❌ No previous shloka found. Please request one first!", None
@@ -157,12 +157,12 @@ async def handle_message(update: Update, context: CallbackContext):
         await update.message.reply_text(response)
         if audio_url:
             await update.message.reply_audio(audio_url)
-    elif user_text == "s":
+    elif user_text == "f":  # Changed from "s" to "f"
         response, audio_url = get_last_shloka(user_id, with_audio)
         await update.message.reply_text(response)
         if audio_url:
             await update.message.reply_audio(audio_url)
-    elif user_text == "n":
+    elif user_text == "n1":
         if user_id in session_data and session_data[user_id]["last_index"] is not None:
             chapter = session_data[user_id]["last_chapter"]
             next_idx = session_data[user_id]["last_index"] + 1
@@ -203,26 +203,26 @@ async def handle_message(update: Update, context: CallbackContext):
         else:
             await update.message.reply_text("❌ No more shlokas available!")
     elif user_text in ["p", "pa"]:
-        if user_id not in session_data or session_data[user_id]["last_index"] is None:
+        if user_id in session_data and session_data[user_id]["last_index"] is not None:
+            chapter = session_data[user_id]["last_chapter"]
+            current_idx = session_data[user_id]["last_index"]
+            start_idx = max(0, current_idx - 2)
+            end_idx = min(len(full_shlokas_hindi[chapter]), current_idx + 3)
+            for idx in range(start_idx, end_idx):
+                response, audio_url = get_shloka(chapter, idx, with_audio)
+                if response:
+                    await update.message.reply_text(response)
+                    if audio_url:
+                        await update.message.reply_audio(audio_url)
+        else:
             await update.message.reply_text("❌ Please request a shloka first!")
-            return
-        chapter = session_data[user_id]["last_chapter"]
-        current_idx = session_data[user_id]["last_index"]
-        start_idx = max(0, current_idx - 2)
-        end_idx = min(len(full_shlokas_hindi[chapter]), current_idx + 3)
-        for idx in range(start_idx, end_idx):
-            response, audio_url = get_shloka(chapter, idx, with_audio)
-            if response:
-                await update.message.reply_text(response)
-                if audio_url:
-                    await update.message.reply_audio(audio_url)
     else:
         await update.message.reply_text(
             "❌ Invalid input. Please use:\n"
             "0-18: Random shloka\n"
             "chapter.verse: Specific shloka (e.g., 18.1)\n"
-            "s: Last full shloka\n"
-            "n: Next shloka\n"
+            "f: Last full shloka\n"  # Changed from "s" to "f"
+            "n1: Next shloka\n"
             "n2-n5: Multiple next shlokas\n"
             "p: Previous 2, current & next 2 shlokas\n"
             "Add 'a' for audio (e.g., '1a', '18.1a')\n"
@@ -236,10 +236,10 @@ async def start(update: Update, context: CallbackContext):
         "0-18 → Random shloka from chapter\n"
         "0a-18a → With audio\n"
         "chapter.verse → Specific shloka (e.g., 18.1, 18.1a)\n"
-        "s → Full last shloka\n"
-        "sa → Full last shloka with audio\n"
-        "n → Next shloka\n"
-        "na → Next with audio\n"
+        "f → Full last shloka\n"  # Changed from "s" to "f"
+        "fa → Full last shloka with audio\n"  # Changed from "sa" to "fa"
+        "n1 → Next shloka\n"
+        "n1a → Next with audio\n"
         "n2-n5 → Multiple next shlokas\n"
         "p → Previous 2, current & next 2\n"
         "pa → Same with audio\n"
