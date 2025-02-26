@@ -46,7 +46,7 @@
 1.46	yadi mām apratīkāram 
 1.47	ēvam uktvārjunaḥ 
 2.1	taṃ tathā kṛpayāviṣṭam
-2.2	kutas tvā kaśmalam idaṃ viṣamē samupasthitam
+2.2	kutas tvā kaśmalam idaṃ 
 2.3	klaibyaṃ mā sma gamaḥ pārtha
 2.4	kathaṃ bhīṣmam ahaṃ sāṅkhyē 
 2.5	gurūn ahatvā hi mahānubhāvān 
@@ -238,7 +238,7 @@
 6.5	uddharēd ātmanātmānaṃ 
 6.6	bandhur ātmātmanas tasya 
 6.7	jitātmanaḥ praśāntasya 
-6.8	jñānavijñānatṛptātmā kūṭasthō vijitēndriyaḥ
+6.8	jñānavijñānatṛptātmā 
 6.9	suhṛnmitrāryudāsīna
 6.10	yōgī yuñjīta satatam 
 6.11	śucau dēśē pratiṣṭhāpya 
