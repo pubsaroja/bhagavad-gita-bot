@@ -19,8 +19,10 @@ if not TOKEN:
 # File URLs
 HINDI_WITH_UVACHA_URL = "https://raw.githubusercontent.com/pubsaroja/bhagavad-gita-bot/refs/heads/main/BG%20Hindi%20with%20Uvacha.txt"
 TELUGU_WITH_UVACHA_URL = "https://raw.githubusercontent.com/pubsaroja/bhagavad-gita-bot/refs/heads/main/BG%20Telugu%20with%20Uvacha.txt"
+ENGLISH_WITH_UVACHA_URL = "https://raw.githubusercontent.com/pubsaroja/bhagavad-gita-bot/main/BG%20English%20with%20Uvacha.txt"
 HINDI_WITHOUT_UVACHA_URL = "https://raw.githubusercontent.com/pubsaroja/bhagavad-gita-bot/refs/heads/main/BG%20Hindi%20without%20Uvacha.txt"
 TELUGU_WITHOUT_UVACHA_URL = "https://raw.githubusercontent.com/pubsaroja/bhagavad-gita-bot/refs/heads/main/BG%20Telugu%20Without%20Uvacha.txt"
+ENGLISH_WITHOUT_UVACHA_URL = "https://raw.githubusercontent.com/pubsaroja/bhagavad-gita-bot/main/BG%20English%20without%20Uvacha.txt"
 
 AUDIO_QUARTER_URL = "https://raw.githubusercontent.com/pubsaroja/bhagavad-gita-bot/main/AudioQuarter/"
 AUDIO_FULL_URL = "https://raw.githubusercontent.com/pubsaroja/bhagavad-gita-bot/main/AudioFull/"
@@ -63,20 +65,26 @@ def load_shlokas_from_github(url):
 # Load all shlokas
 shlokas_hindi = load_shlokas_from_github(HINDI_WITHOUT_UVACHA_URL)
 shlokas_telugu = load_shlokas_from_github(TELUGU_WITHOUT_UVACHA_URL)
+shlokas_english = load_shlokas_from_github(ENGLISH_WITHOUT_UVACHA_URL)
 full_shlokas_hindi = load_shlokas_from_github(HINDI_WITH_UVACHA_URL)
 full_shlokas_telugu = load_shlokas_from_github(TELUGU_WITH_UVACHA_URL)
+full_shlokas_english = load_shlokas_from_github(ENGLISH_WITH_UVACHA_URL)
 
 def get_shloka(chapter: str, verse_idx: int, with_audio: bool = False, audio_only: bool = False):
     chapter = str(chapter)
     if chapter not in full_shlokas_hindi or verse_idx >= len(full_shlokas_hindi[chapter]):
         return None, None
     verse, shloka_hindi = full_shlokas_hindi[chapter][verse_idx]
-    logger.info(f"get_shloka - Chapter: {chapter}, Verse: {verse}, Index: {verse_idx}")
     _, shloka_telugu = full_shlokas_telugu[chapter][verse_idx]
+    _, shloka_english = full_shlokas_english[chapter][verse_idx]
+    logger.info(f"get_shloka - Chapter: {chapter}, Verse: {verse}, Index: {verse_idx}")
     audio_file_name = f"{chapter}.{int(verse)}.mp3"
     audio_link = f"{AUDIO_QUARTER_URL}{audio_file_name}" if with_audio else None
     logger.info(f"Generated audio URL in get_shloka: {audio_link}")
-    text = f"{chapter}.{verse}\n{shloka_hindi}\n{shloka_telugu}" if not audio_only else None
+    text = (f"{chapter}.{verse}\n"
+            f"Telugu:\n{shloka_telugu}\n\n"
+            f"Hindi:\n{shloka_hindi}\n\n"
+            f"English:\n{shloka_english}") if not audio_only else None
     return text, audio_link
 
 def get_random_shloka(chapter: str, user_id: int, with_audio: bool = False, audio_only: bool = False):
@@ -98,12 +106,16 @@ def get_random_shloka(chapter: str, user_id: int, with_audio: bool = False, audi
     session_data[user_id]["last_chapter"] = chapter
     session_data[user_id]["last_index"] = shloka_index
     verse, shloka_hindi = shlokas_hindi[chapter][shloka_index]
-    logger.info(f"get_random_shloka - Chapter: {chapter}, Verse: {verse}, Index: {shloka_index}")
     _, shloka_telugu = shlokas_telugu[chapter][shloka_index]
+    _, shloka_english = shlokas_english[chapter][shloka_index]
+    logger.info(f"get_random_shloka - Chapter: {chapter}, Verse: {verse}, Index: {shloka_index}")
     audio_file_name = f"{chapter}.{int(verse)}.mp3"
     audio_link = f"{AUDIO_QUARTER_URL}{audio_file_name}" if with_audio else None
     logger.info(f"Generated audio URL in get_random_shloka: {audio_link}")
-    text = f"{chapter}.{verse}\n{shloka_hindi}\n{shloka_telugu}" if not audio_only else None
+    text = (f"{chapter}.{verse}\n"
+            f"Telugu:\n{shloka_telugu}\n\n"
+            f"Hindi:\n{shloka_hindi}\n\n"
+            f"English:\n{shloka_english}") if not audio_only else None
     return text, audio_link
 
 def get_specific_shloka(chapter: str, verse: str, user_id: int, with_audio: bool = False, audio_only: bool = False):
@@ -111,18 +123,22 @@ def get_specific_shloka(chapter: str, verse: str, user_id: int, with_audio: bool
         session_data[user_id] = {"used_shlokas": {}, "last_chapter": None, "last_index": None}
     chapter = str(chapter)
     verse = str(verse)
-    if chapter not in full_shlokas_hindi:  # Use full shlokas
+    if chapter not in full_shlokas_hindi:
         return "❌ Invalid chapter number. Please enter a number between 0-18.", None
     for idx, (v, _) in enumerate(full_shlokas_hindi[chapter]):
         if v == verse:
-            verse_text, shloka_hindi = full_shlokas_hindi[chapter][idx]  # With Uvacha
-            _, shloka_telugu = full_shlokas_telugu[chapter][idx]  # With Uvacha
+            verse_text, shloka_hindi = full_shlokas_hindi[chapter][idx]
+            _, shloka_telugu = full_shlokas_telugu[chapter][idx]
+            _, shloka_english = full_shlokas_english[chapter][idx]
             audio_file_name = f"{chapter}.{int(verse)}.mp3"
             audio_link = f"{AUDIO_QUARTER_URL}{audio_file_name}" if with_audio else None
             logger.info(f"get_specific_shloka - Chapter: {chapter}, Verse: {verse}, Audio: {audio_link}")
             session_data[user_id]["last_chapter"] = chapter
             session_data[user_id]["last_index"] = idx
-            text = f"{chapter}.{verse}\n{shloka_hindi}\n{shloka_telugu}" if not audio_only else None
+            text = (f"{chapter}.{verse}\n"
+                    f"Telugu:\n{shloka_telugu}\n\n"
+                    f"Hindi:\n{shloka_hindi}\n\n"
+                    f"English:\n{shloka_english}") if not audio_only else None
             return text, audio_link
     return f"❌ Shloka {chapter}.{verse} not found!", None
 
@@ -132,10 +148,14 @@ def get_last_shloka(user_id: int, with_audio: bool = False, audio_only: bool = F
         shloka_index = session_data[user_id]["last_index"]
         verse, shloka_hindi = full_shlokas_hindi[chapter][shloka_index]
         _, shloka_telugu = full_shlokas_telugu[chapter][shloka_index]
+        _, shloka_english = full_shlokas_english[chapter][shloka_index]
         audio_file_name = f"{chapter}.{int(verse)}.mp3"
         audio_link = f"{AUDIO_QUARTER_URL}{audio_file_name}" if with_audio else None
         logger.info(f"Generated audio URL in get_last_shloka: {audio_link}")
-        text = f"{chapter}.{verse}\n{shloka_hindi}\n{shloka_telugu}" if not audio_only else None
+        text = (f"{chapter}.{verse}\n"
+                f"Telugu:\n{shloka_telugu}\n\n"
+                f"Hindi:\n{shloka_hindi}\n\n"
+                f"English:\n{shloka_english}") if not audio_only else None
         return text, audio_link
     return "❌ No previous shloka found. Please request one first!", None
 
