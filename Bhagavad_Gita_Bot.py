@@ -175,7 +175,6 @@ async def handle_message(update: Update, context: CallbackContext):
         except ValueError:
             pass
     
-    # Handle random shloka or navigation commands
     if user_text.isdigit():
         response, audio_url = get_random_shloka(user_text, user_id, with_audio, audio_only)
         if not audio_only:
@@ -192,7 +191,7 @@ async def handle_message(update: Update, context: CallbackContext):
         if user_id in session_data and session_data[user_id]["last_index"] is not None:
             chapter = session_data[user_id]["last_chapter"]
             next_idx = session_data[user_id]["last_index"] + 1
-            response, audio_url = get_shloka(chapter, next_idx, with_audio, audio_only)
+            response, audio_url = get_shloka(chapter, next_idx, with_audio, audio_only, full_audio=with_audio)
             if response:
                 session_data[user_id]["last_index"] = next_idx
                 if not audio_only:
@@ -212,7 +211,7 @@ async def handle_message(update: Update, context: CallbackContext):
             audio_urls = []
             for i in range(count):
                 next_idx = current_idx + i + 1
-                response, audio_url = get_shloka(chapter, next_idx, with_audio, audio_only)
+                response, audio_url = get_shloka(chapter, next_idx, with_audio, audio_only, full_audio=with_audio)
                 if response:
                     responses.append(response)
                     if audio_url:
@@ -239,7 +238,7 @@ async def handle_message(update: Update, context: CallbackContext):
             responses = []
             audio_urls = []
             for idx in range(start_idx, end_idx):
-                response, audio_url = get_shloka(chapter, idx, with_audio, audio_only)
+                response, audio_url = get_shloka(chapter, idx, with_audio, audio_only, full_audio=with_audio)
                 if response:
                     responses.append(response)
                     if audio_url:
