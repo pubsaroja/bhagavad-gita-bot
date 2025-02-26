@@ -83,31 +83,31 @@ def get_shloka_at_offset(current_chapter, current_idx, offset):
     idx = current_idx + offset
     while idx < 0:
         prev_chapter = get_previous_chapter(chapter)
-        num_shlokas_prev = len(full_shlokas_hindi[prev_chapter])
+        num_shlokas_prev = len(shlokas_hindi[prev_chapter])  # Changed to partial shlokas
         idx += num_shlokas_prev
         chapter = prev_chapter
-    while idx >= len(full_shlokas_hindi[chapter]):
+    while idx >= len(shlokas_hindi[chapter]):  # Changed to partial shlokas
         next_chapter = get_next_chapter(chapter)
-        idx -= len(full_shlokas_hindi[chapter])
+        idx -= len(shlokas_hindi[chapter])
         chapter = next_chapter
     return chapter, idx
 
 # Shloka retrieval functions
 def get_shloka(chapter: str, verse_idx: int, with_audio: bool = False, audio_only: bool = False):
-    """Fetch a specific shloka by chapter and index."""
+    """Fetch a specific shloka by chapter and index (partial version)."""
     chapter = str(chapter)
-    if chapter not in full_shlokas_hindi or verse_idx >= len(full_shlokas_hindi[chapter]):
+    if chapter not in shlokas_hindi or verse_idx >= len(shlokas_hindi[chapter]):
         return None, None
-    verse, shloka_hindi = full_shlokas_hindi[chapter][verse_idx]
-    _, shloka_telugu = full_shlokas_telugu[chapter][verse_idx]
-    _, shloka_english = full_shlokas_english[chapter][verse_idx]
+    verse, shloka_hindi = shlokas_hindi[chapter][verse_idx]
+    _, shloka_telugu = shlokas_telugu[chapter][verse_idx]
+    _, shloka_english = shlokas_english[chapter][verse_idx]
     audio_file_name = f"{chapter}.{int(verse)}.mp3"
     audio_link = f"{AUDIO_QUARTER_URL}{audio_file_name}" if with_audio else None
     text = f"{chapter}.{verse}\nTelugu:\n{shloka_telugu}\n\nHindi:\n{shloka_hindi}\n\nEnglish:\n{shloka_english}" if not audio_only else None
     return text, audio_link
 
 def get_random_shloka(chapter: str, user_id: int, with_audio: bool = False, audio_only: bool = False):
-    """Fetch a random shloka from a chapter."""
+    """Fetch a random shloka from a chapter (already uses partial shlokas)."""
     if user_id not in session_data:
         session_data[user_id] = {"used_shlokas": {}, "last_chapter": None, "last_index": None}
     chapter = str(chapter).strip()
@@ -133,18 +133,18 @@ def get_random_shloka(chapter: str, user_id: int, with_audio: bool = False, audi
     return text, audio_link
 
 def get_specific_shloka(chapter: str, verse: str, user_id: int, with_audio: bool = False, audio_only: bool = False):
-    """Fetch a specific shloka by chapter and verse number."""
+    """Fetch a specific shloka by chapter and verse number (partial version)."""
     if user_id not in session_data:
         session_data[user_id] = {"used_shlokas": {}, "last_chapter": None, "last_index": None}
     chapter = str(chapter)
     verse = str(verse)
-    if chapter not in full_shlokas_hindi:
+    if chapter not in shlokas_hindi:
         return "❌ Invalid chapter number. Please enter a number between 0-18.", None
-    for idx, (v, _) in enumerate(full_shlokas_hindi[chapter]):
+    for idx, (v, _) in enumerate(shlokas_hindi[chapter]):
         if v == verse:
-            verse_text, shloka_hindi = full_shlokas_hindi[chapter][idx]
-            _, shloka_telugu = full_shlokas_telugu[chapter][idx]
-            _, shloka_english = full_shlokas_english[chapter][idx]
+            verse_text, shloka_hindi = shlokas_hindi[chapter][idx]
+            _, shloka_telugu = shlokas_telugu[chapter][idx]
+            _, shloka_english = shlokas_english[chapter][idx]
             audio_file_name = f"{chapter}.{int(verse)}.mp3"
             audio_link = f"{AUDIO_QUARTER_URL}{audio_file_name}" if with_audio else None
             session_data[user_id]["last_chapter"] = chapter
@@ -154,7 +154,7 @@ def get_specific_shloka(chapter: str, verse: str, user_id: int, with_audio: bool
     return f"❌ Shloka {chapter}.{verse} not found!", None
 
 def get_last_shloka(user_id: int, with_audio: bool = False, audio_only: bool = False, full_audio: bool = False):
-    """Fetch the last shloka shown to the user."""
+    """Fetch the last shloka shown to the user (full version)."""
     if user_id in session_data and session_data[user_id]["last_index"] is not None:
         chapter = session_data[user_id]["last_chapter"]
         shloka_index = session_data[user_id]["last_index"]
@@ -212,7 +212,7 @@ async def handle_message(update: Update, context: CallbackContext):
         if user_id in session_data and session_data[user_id]["last_index"] is not None:
             chapter = session_data[user_id]["last_chapter"]
             next_idx = session_data[user_id]["last_index"] + 1
-            if next_idx < len(full_shlokas_hindi[chapter]):
+            if next_idx < len(shlokas_hindi[chapter]):  # Changed to partial shlokas
                 response, audio_url = get_shloka(chapter, next_idx, with_audio, audio_only)
                 if response:
                     session_data[user_id]["last_index"] = next_idx
@@ -233,7 +233,7 @@ async def handle_message(update: Update, context: CallbackContext):
             audio_urls = []
             for i in range(count):
                 next_idx = current_idx + i + 1
-                if next_idx < len(full_shlokas_hindi[chapter]):
+                if next_idx < len(shlokas_hindi[chapter]):  # Changed to partial shlokas
                     response, audio_url = get_shloka(chapter, next_idx, with_audio, audio_only)
                     if response:
                         responses.append(response)
