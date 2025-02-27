@@ -117,13 +117,13 @@ def get_specific_shloka(chapter: str, verse: str, user_id: int, with_audio: bool
         session_data[user_id] = {"used_shlokas": {}, "last_chapter": None, "last_index": None}
     chapter = str(chapter)
     verse = str(verse)
-    if chapter not in full_shlokas_hindi:  # Changed from shlokas_hindi to full_shlokas_hindi
+    if chapter not in full_shlokas_hindi:
         return "❌ Invalid chapter number. Please enter a number between 0-18.", None
     for idx, (v, _) in enumerate(full_shlokas_hindi[chapter]):
         if v == verse:
-            verse_text, shloka_hindi = full_shlokas_hindi[chapter][idx]  # Use full shlokas
-            _, shloka_telugu = full_shlokas_telugu[chapter][idx]  # Use full shlokas
-            _, shloka_english = full_shlokas_english[chapter][idx]  # Use full shlokas
+            verse_text, shloka_hindi = full_shlokas_hindi[chapter][idx]
+            _, shloka_telugu = full_shlokas_telugu[chapter][idx]
+            _, shloka_english = full_shlokas_english[chapter][idx]
             audio_file_name = f"{chapter}.{int(verse)}.mp3"
             audio_link = f"{AUDIO_QUARTER_URL}{audio_file_name}" if with_audio else None
             session_data[user_id]["last_chapter"] = chapter
@@ -153,12 +153,12 @@ async def handle_message(update: Update, context: CallbackContext):
     user_id = update.message.from_user.id
     
     # Check for audio modifiers
-    full_audio = user_text == "fa"  # Check before stripping
+    full_audio = user_text == "fa"  # Check for 'fa' before stripping
     with_audio = "a" in user_text[-2:] or user_text.endswith("a")
     audio_only = user_text.endswith("ao")
     if audio_only:
         user_text = user_text[:-2]  # Remove "ao"
-    elif with_audio:
+    elif with_audio and user_text != "fa":  # Avoid stripping 'a' from 'fa'
         user_text = user_text[:-1]  # Remove "a"
     
     # Handle specific shloka request (e.g., "18.1")
@@ -191,7 +191,7 @@ async def handle_message(update: Update, context: CallbackContext):
         if user_id in session_data and session_data[user_id]["last_index"] is not None:
             chapter = session_data[user_id]["last_chapter"]
             next_idx = session_data[user_id]["last_index"] + 1
-            response, audio_url = get_shloka(chapter, next_idx, with_audio, audio_only, full_audio=with_audio)
+            response, audio_url = get_shloka(chapter, next_idx, with_audio, audio_only)
             if response:
                 session_data[user_id]["last_index"] = next_idx
                 if not audio_only:
@@ -211,7 +211,7 @@ async def handle_message(update: Update, context: CallbackContext):
             audio_urls = []
             for i in range(count):
                 next_idx = current_idx + i + 1
-                response, audio_url = get_shloka(chapter, next_idx, with_audio, audio_only, full_audio=with_audio)
+                response, audio_url = get_shloka(chapter, next_idx, with_audio, audio_only)
                 if response:
                     responses.append(response)
                     if audio_url:
@@ -238,7 +238,7 @@ async def handle_message(update: Update, context: CallbackContext):
             responses = []
             audio_urls = []
             for idx in range(start_idx, end_idx):
-                response, audio_url = get_shloka(chapter, idx, with_audio, audio_only, full_audio=with_audio)
+                response, audio_url = get_shloka(chapter, idx, with_audio, audio_only)
                 if response:
                     responses.append(response)
                     if audio_url:
