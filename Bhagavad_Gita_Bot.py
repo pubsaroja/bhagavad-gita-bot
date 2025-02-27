@@ -141,8 +141,9 @@ def get_last_shloka(user_id: int, with_audio: bool = False, audio_only: bool = F
         _, shloka_telugu = full_shlokas_telugu[chapter][shloka_index]
         _, shloka_english = full_shlokas_english[chapter][shloka_index]
         audio_file_name = f"{chapter}.{int(verse)}.mp3"
-        audio_url = AUDIO_FULL_URL if full_audio else AUDIO_QUARTER_URL
-        audio_link = f"{audio_url}{audio_file_name}" if with_audio else None
+        # Ensure full audio when either full_audio or audio_only is True for "fao"
+        audio_url = AUDIO_FULL_URL if (full_audio or (audio_only and user_text == "fao")) else AUDIO_QUARTER_URL
+        audio_link = f"{audio_url}{audio_file_name}" if (with_audio or audio_only) else None  # Ensure audio for "fao"
         text = f"{chapter}.{verse}\nTelugu:\n{shloka_telugu}\n\nHindi:\n{shloka_hindi}\n\nEnglish:\n{shloka_english}" if not audio_only else None
         return text, audio_link
     return "❌ No previous shloka found. Please request one first!", None
@@ -153,12 +154,12 @@ async def handle_message(update: Update, context: CallbackContext):
     user_id = update.message.from_user.id
     
     # Check for audio modifiers
-    full_audio = user_text == "fa"  # Check before stripping
+    full_audio = user_text in ["fa", "fao"]  # Include "fao" as full audio
     with_audio = "a" in user_text[-2:] or user_text.endswith("a")
     audio_only = user_text.endswith("ao")
     if audio_only:
         user_text = user_text[:-2]  # Remove "ao"
-    elif with_audio and user_text != "fa":  # Avoid stripping 'a' from 'fa'
+    elif with_audio and user_text not in ["fa", "fao"]:  # Avoid stripping 'a' from 'fa' or 'fao'
         user_text = user_text[:-1]  # Remove "a"
     
     # Handle specific shloka request (e.g., "18.1")
@@ -181,8 +182,8 @@ async def handle_message(update: Update, context: CallbackContext):
             await update.message.reply_text(response)
         if audio_url:
             await update.message.reply_audio(audio_url)
-    elif user_text == "f" or user_text == "fa":
-        response, audio_url = get_last_shloka(user_id, with_audio, audio_only, full_audio=full_audio)
+    elif user_text in ["f", "fa", "fao"]:  # Handle "f", "fa", and "fao"
+        response, audio_url = get_last_shloka(user_id, with_audio=(user_text == "fa"), audio_only=(user_text == "fao"), full_audio=full_audio)
         if not audio_only:
             await update.message.reply_text(response)
         if audio_url:
@@ -191,7 +192,7 @@ async def handle_message(update: Update, context: CallbackContext):
         if user_id in session_data and session_data[user_id]["last_index"] is not None:
             chapter = session_data[user_id]["last_chapter"]
             next_idx = session_data[user_id]["last_index"] + 1
-            response, audio_url = get_shloka(chapter, next_idx, with_audio, audio_only, full_audio=with_audio)  # Use full audio for 'n1a'
+            response, audio_url = get_shloka(chapter, next_idx, with_audio, audio_only, full_audio=with_audio)
             if response:
                 session_data[user_id]["last_index"] = next_idx
                 if not audio_only:
@@ -238,7 +239,7 @@ async def handle_message(update: Update, context: CallbackContext):
             responses = []
             audio_urls = []
             for idx in range(start_idx, end_idx):
-                response, audio_url = get_shloka(chapter, idx, with_audio, audio_only, full_audio=with_audio)  # Use full audio for 'pa'
+                response, audio_url = get_shloka(chapter, idx, with_audio, audio_only, full_audio=with_audio)
                 if response:
                     responses.append(response)
                     if audio_url:
