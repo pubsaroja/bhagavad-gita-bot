@@ -125,7 +125,8 @@ def get_specific_shloka(chapter: str, verse: str, user_id: int, with_audio: bool
             _, shloka_telugu = full_shlokas_telugu[chapter][idx]
             _, shloka_english = full_shlokas_english[chapter][idx]
             audio_file_name = f"{chapter}.{int(verse)}.mp3"
-            audio_link = f"{AUDIO_QUARTER_URL}{audio_file_name}" if with_audio else None
+            # Use full audio when 'a' is present for specific shlokas
+            audio_link = f"{AUDIO_FULL_URL}{audio_file_name}" if with_audio else None
             session_data[user_id]["last_chapter"] = chapter
             session_data[user_id]["last_index"] = idx
             text = f"{chapter}.{verse}\nTelugu:\n{shloka_telugu}\n\nHindi:\n{shloka_hindi}\n\nEnglish:\n{shloka_english}" if not audio_only else None
@@ -153,7 +154,7 @@ async def handle_message(update: Update, context: CallbackContext):
     user_id = update.message.from_user.id
     
     # Check for audio modifiers
-    full_audio = user_text == "fa"  # Check for 'fa' before stripping
+    full_audio = user_text == "fa"  # Check before stripping
     with_audio = "a" in user_text[-2:] or user_text.endswith("a")
     audio_only = user_text.endswith("ao")
     if audio_only:
@@ -161,7 +162,7 @@ async def handle_message(update: Update, context: CallbackContext):
     elif with_audio and user_text != "fa":  # Avoid stripping 'a' from 'fa'
         user_text = user_text[:-1]  # Remove "a"
     
-    # Handle specific shloka request (e.g., "18.1")
+    # Handle specific shloka request (e.g., "1.14")
     if "." in user_text:
         try:
             chapter, verse = user_text.split(".", 1)
