@@ -291,7 +291,7 @@ async def handle_message(update: Update, context: CallbackContext):
             shloka_index = session_data[user_id]["last_index"]
             verse, _ = full_shlokas_hindi[chapter][shloka_index]
             audio_file_name = f"{chapter}.{int(verse)}.mp3"
-            audio_link = f"{AUDIO_QUARTER_URL}{audio_file_name}"
+            audio_link = f"{AUDIO_FULL_URL}{audio_file_name}"
             await update.message.reply_audio(audio_link)
         else:
             await update.message.reply_text("❌ No previous Shloka found. Please request one first!")
