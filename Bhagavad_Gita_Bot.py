@@ -71,6 +71,28 @@ full_shlokas_hindi = load_shlokas_from_github(HINDI_WITH_UVACHA_URL)
 full_shlokas_telugu = load_shlokas_from_github(TELUGU_WITH_UVACHA_URL)
 full_shlokas_english = load_shlokas_from_github(ENGLISH_WITH_UVACHA_URL)
 
+# Helper functions for chapter navigation
+def get_previous_chapter(chapter):
+    return "18" if chapter == "1" else str(int(chapter) - 1)
+
+def get_next_chapter(chapter):
+    return "1" if chapter == "18" else str(int(chapter) + 1)
+
+def get_shloka_at_offset(current_chapter, current_idx, offset):
+    """Calculate chapter and index for a shloka at a given offset, handling chapter boundaries."""
+    chapter = current_chapter
+    idx = current_idx + offset
+    while idx < 0:
+        prev_chapter = get_previous_chapter(chapter)
+        num_shlokas_prev = len(full_shlokas_hindi[prev_chapter])
+        idx += num_shlokas_prev
+        chapter = prev_chapter
+    while idx >= len(full_shlokas_hindi[chapter]):
+        next_chapter = get_next_chapter(chapter)
+        idx -= len(full_shlokas_hindi[chapter])
+        chapter = next_chapter
+    return chapter, idx
+
 # Get a specific shloka by chapter and verse index
 def get_shloka(chapter: str, verse_idx: int, with_audio: bool = False, audio_only: bool = False, full_audio: bool = False):
     chapter = str(chapter)
@@ -154,7 +176,7 @@ async def handle_message(update: Update, context: CallbackContext):
     with_audio = command.endswith("a") and not audio_only
     if with_audio:
         command = command[:-1]
-    full_audio = with_audio or audio_only
+    full_audio = command in ["f", "n1", "n2", "n3", "n4", "n5", "p"] or with_audio or audio_only
 
     logger.info(f"Parsed command: {command}, audio_only: {audio_only}, with_audio: {with_audio}, full_audio: {full_audio}")
 
@@ -229,14 +251,14 @@ async def handle_message(update: Update, context: CallbackContext):
     # Handle previous and next shlokas (e.g., "p", "pa", "pao")
     if command == "p":
         if user_id in session_data and session_data[user_id]["last_index"] is not None:
-            chapter = session_data[user_id]["last_chapter"]
+            current_chapter = session_data[user_id]["last_chapter"]
             current_idx = session_data[user_id]["last_index"]
-            start_idx = max(0, current_idx - 2)
-            end_idx = min(len(full_shlokas_hindi[chapter]), current_idx + 3)
+            offsets = [-2, -1, 0, 1, 2]
             responses = []
             audio_urls = []
-            logger.info(f"Processing 'p' for chapter {chapter}, range {start_idx} to {end_idx}")
-            for idx in range(start_idx, end_idx):
+            logger.info(f"Processing 'p' for chapter {current_chapter}, current index {current_idx}")
+            for offset in offsets:
+                chapter, idx = get_shloka_at_offset(current_chapter, current_idx, offset)
                 response, audio_url = get_shloka(chapter, idx, with_audio, audio_only, full_audio)
                 if response or audio_url:
                     responses.append(response)
@@ -300,15 +322,15 @@ async def start(update: Update, context: CallbackContext):
         "chapter.verse → Specific Shloka (e.g., 18.1)\n"
         "chapter.verse + a → With audio (e.g., 18.1a)\n"
         "chapter.verse + ao → Audio only (e.g., 18.1ao)\n"
-        "f → Last full Shloka\n"
-        "fa → Last full Shloka with full audio\n"
-        "fao → Last full Shloka audio only\n"
+        "f → Full last Shloka\n"
+        "fa → Full last Shloka with full audio\n"
+        "fao → Full last Shloka audio only\n"
         "n1 → Next Shloka\n"
         "n1a → Next with audio\n"
         "n1ao → Next audio only\n"
         "n2-n5 → Multiple next Shlokas\n"
         "p → Previous 2, current & next 2\n"
-        "pa → Same with full audio\n"
+        "pa → Same with audio\n"
         "pao → Same audio only\n"
         "o → Audio of last Shloka\n"
         "Use /reset to start fresh"
