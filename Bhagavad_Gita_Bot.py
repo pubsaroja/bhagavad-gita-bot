@@ -5,7 +5,7 @@ import logging
 from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, CallbackContext
 
-# Configure logging
+# Configure logging for debugging
 logging.basicConfig(format="%(asctime)s - %(levelname)s - %(message)s", level=logging.INFO)
 logger = logging.getLogger(__name__)
 
@@ -31,7 +31,7 @@ AUDIO_FULL_URL = "https://raw.githubusercontent.com/pubsaroja/bhagavad-gita-bot/
 # Session data to track user interactions
 session_data = {}
 
-# Function to load shlokas from GitHub
+# Load shlokas from GitHub
 def load_shlokas_from_github(url):
     response = requests.get(url)
     if response.status_code != 200:
@@ -71,7 +71,7 @@ full_shlokas_hindi = load_shlokas_from_github(HINDI_WITH_UVACHA_URL)
 full_shlokas_telugu = load_shlokas_from_github(TELUGU_WITH_UVACHA_URL)
 full_shlokas_english = load_shlokas_from_github(ENGLISH_WITH_UVACHA_URL)
 
-# Function to get a specific shloka by chapter and verse index
+# Get a specific shloka by chapter and verse index
 def get_shloka(chapter: str, verse_idx: int, with_audio: bool = False, audio_only: bool = False, full_audio: bool = False):
     chapter = str(chapter)
     if chapter not in full_shlokas_hindi or verse_idx >= len(full_shlokas_hindi[chapter]):
@@ -85,7 +85,7 @@ def get_shloka(chapter: str, verse_idx: int, with_audio: bool = False, audio_onl
     text = f"{chapter}.{verse}\nTelugu:\n{shloka_telugu}\n\nHindi:\n{shloka_hindi}\n\nEnglish:\n{shloka_english}" if not audio_only else None
     return text, audio_link
 
-# Function to get a random shloka from a chapter
+# Get a random shloka from a chapter
 def get_random_shloka(chapter: str, user_id: int, with_audio: bool = False, audio_only: bool = False):
     if user_id not in session_data:
         session_data[user_id] = {"used_shlokas": {}, "last_chapter": None, "last_index": None}
@@ -111,7 +111,7 @@ def get_random_shloka(chapter: str, user_id: int, with_audio: bool = False, audi
     text = f"{chapter}.{verse}\nTelugu:\n{shloka_telugu}\n\nHindi:\n{shloka_hindi}\n\nEnglish:\n{shloka_english}" if not audio_only else None
     return text, audio_link
 
-# Function to get a specific shloka by chapter and verse number
+# Get a specific shloka by chapter and verse number
 def get_specific_shloka(chapter: str, verse: str, user_id: int, with_audio: bool = False, audio_only: bool = False, full_audio: bool = False):
     if user_id not in session_data:
         session_data[user_id] = {"used_shlokas": {}, "last_chapter": None, "last_index": None}
@@ -132,7 +132,7 @@ def get_specific_shloka(chapter: str, verse: str, user_id: int, with_audio: bool
             return text, audio_link
     return f"❌ Shloka {chapter}.{verse} not found!", None
 
-# Function to get the last requested shloka
+# Get the last requested shloka
 def get_last_shloka(user_id: int, with_audio: bool = False, audio_only: bool = False, full_audio: bool = False):
     if user_id in session_data and session_data[user_id]["last_index"] is not None:
         chapter = session_data[user_id]["last_chapter"]
@@ -147,63 +147,71 @@ def get_last_shloka(user_id: int, with_audio: bool = False, audio_only: bool = F
         return text, audio_link
     return "❌ No previous shloka found. Please request one first!", None
 
-# Main message handler with corrections for "pa", "pao", and "N1ao"
+# Main message handler
 async def handle_message(update: Update, context: CallbackContext):
     original_text = update.message.text.strip().lower()
-    user_text = original_text
     user_id = update.message.from_user.id
-    
+    logger.info(f"Received command: {original_text} from user {user_id}")
+
     # Check for audio modifiers
     audio_only = original_text.endswith("ao")
     if audio_only:
-        user_text = user_text[:-2]  # Remove "ao"
-    with_audio = user_text.endswith("a") and not audio_only
+        command = original_text[:-2]  # Remove "ao"
+    else:
+        command = original_text
+    with_audio = command.endswith("a") and not audio_only
     if with_audio:
-        user_text = user_text[:-1]  # Remove "a"
-    
+        command = command[:-1]  # Remove "a"
+
     # Set full_audio for commands that include "a" or "ao"
-    full_audio = with_audio or audio_only or original_text in ["fa", "fao"]
-    
+    full_audio = with_audio or audio_only or command in ["fa", "fao"]
+
     # Ensure with_audio is False for audio-only commands
     if audio_only:
         with_audio = False
-    
+
+    logger.info(f"Parsed command: {command}, audio_only: {audio_only}, with_audio: {with_audio}, full_audio: {full_audio}")
+
     # Handle specific shloka request (e.g., "18.1", "18.1a", "18.1ao")
-    if "." in user_text:
+    if "." in command:
         try:
-            chapter, verse = user_text.split(".", 1)
+            chapter, verse = command.split(".", 1)
             if chapter.isdigit() and verse.isdigit():
                 response, audio_url = get_specific_shloka(chapter, verse, user_id, with_audio, audio_only, full_audio)
                 if not audio_only and response:
                     await update.message.reply_text(response)
                 if audio_url:
                     await update.message.reply_audio(audio_url)
+                logger.info(f"Updated session for user {user_id}: chapter {chapter}, index {session_data[user_id]['last_index']}")
                 return
         except ValueError:
             pass
-    
+
     # Handle chapter number or random shloka (e.g., "1", "1a", "1ao")
-    if user_text.isdigit():
-        response, audio_url = get_random_shloka(user_text, user_id, with_audio, audio_only)
+    if command.isdigit():
+        response, audio_url = get_random_shloka(command, user_id, with_audio, audio_only)
         if not audio_only and response:
             await update.message.reply_text(response)
         if audio_url:
             await update.message.reply_audio(audio_url)
-    
+        logger.info(f"Updated session for user {user_id}: chapter {session_data[user_id]['last_chapter']}, index {session_data[user_id]['last_index']}")
+        return
+
     # Handle last shloka (e.g., "f", "fa", "fao")
-    elif user_text == "f":
+    if command == "f":
         response, audio_url = get_last_shloka(user_id, with_audio=with_audio, audio_only=audio_only, full_audio=full_audio)
         if not audio_only and response:
             await update.message.reply_text(response)
         if audio_url:
             await update.message.reply_audio(audio_url)
-    
+        return
+
     # Handle next shloka (e.g., "n1", "n1a", "n1ao")
-    elif user_text.startswith("n") and user_text[1:].isdigit():
+    if command.startswith("n") and command[1:].isdigit():
         if user_id in session_data and session_data[user_id]["last_index"] is not None:
             chapter = session_data[user_id]["last_chapter"]
             current_idx = session_data[user_id]["last_index"]
-            count = int(user_text[1:])
+            count = int(command[1:])
             responses = []
             audio_urls = []
             for i in range(count):
@@ -223,13 +231,15 @@ async def handle_message(update: Update, context: CallbackContext):
                         await update.message.reply_text(response)
                 for audio_url in audio_urls:
                     await update.message.reply_audio(audio_url)
+                logger.info(f"Updated session for user {user_id}: chapter {chapter}, index {session_data[user_id]['last_index']}")
             else:
                 await update.message.reply_text("❌ No next Shloka available!")
         else:
             await update.message.reply_text("❌ Please request a Shloka first!")
-    
+        return
+
     # Handle previous and next shlokas (e.g., "p", "pa", "pao")
-    elif user_text == "p":
+    if command == "p":
         if user_id in session_data and session_data[user_id]["last_index"] is not None:
             chapter = session_data[user_id]["last_chapter"]
             current_idx = session_data[user_id]["last_index"]
@@ -250,9 +260,10 @@ async def handle_message(update: Update, context: CallbackContext):
                 await update.message.reply_audio(audio_url)
         else:
             await update.message.reply_text("❌ Please request a Shloka first!")
-    
+        return
+
     # Handle audio of last shloka (e.g., "o")
-    elif user_text == "o":
+    if command == "o":
         if user_id in session_data and session_data[user_id]["last_index"] is not None:
             chapter = session_data[user_id]["last_chapter"]
             shloka_index = session_data[user_id]["last_index"]
@@ -262,21 +273,21 @@ async def handle_message(update: Update, context: CallbackContext):
             await update.message.reply_audio(audio_link)
         else:
             await update.message.reply_text("❌ No previous Shloka found. Please request one first!")
-    
+        return
+
     # Handle invalid input
-    else:
-        await update.message.reply_text(
-            "❌ Invalid input. Please use:\n"
-            "0-18: Random Shloka\n"
-            "chapter.verse: Specific Shloka (e.g., 18.1)\n"
-            "f: Last full Shloka\n"
-            "n1-n5: Next Shloka(s)\n"
-            "p: Previous 2, current & next 2 Shlokas\n"
-            "o: Audio of last Shloka\n"
-            "Add 'a' for audio with text (e.g., '1a', '18.1a')\n"
-            "Add 'ao' for audio only (e.g., '1ao', '18.1ao')\n"
-            "Use /reset to start fresh"
-        )
+    await update.message.reply_text(
+        "❌ Invalid input. Please use:\n"
+        "0-18: Random Shloka\n"
+        "chapter.verse: Specific Shloka (e.g., 18.1)\n"
+        "f: Last full Shloka\n"
+        "n1-n5: Next Shloka(s)\n"
+        "p: Previous 2, current & next 2 Shlokas\n"
+        "o: Audio of last Shloka\n"
+        "Add 'a' for audio with text (e.g., '1a', '18.1a')\n"
+        "Add 'ao' for audio only (e.g., '1ao', '18.1ao')\n"
+        "Use /reset to start fresh"
+    )
 
 # Command handlers
 async def start(update: Update, context: CallbackContext):
@@ -315,7 +326,10 @@ def main():
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("reset", reset))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
-    app.run_webhook(listen="0.0.0.0", port=int(os.getenv("PORT", 5000)), webhook_url=WEBHOOK_URL)
+    if WEBHOOK_URL:
+        app.run_webhook(listen="0.0.0.0", port=int(os.getenv("PORT", 5000)), webhook_url=WEBHOOK_URL)
+    else:
+        app.run_polling()
 
 if __name__ == "__main__":
     main()
