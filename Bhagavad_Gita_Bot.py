@@ -80,9 +80,9 @@ def get_shloka(chapter: str, verse_idx: int, with_audio: bool = False, audio_onl
     _, shloka_telugu = full_shlokas_telugu[chapter][verse_idx]
     _, shloka_english = full_shlokas_english[chapter][verse_idx]
     audio_file_name = f"{chapter}.{int(verse)}.mp3"
-    audio_url = AUDIO_FULL_URL if full_audio else AUDIO_QUARTER_URL
-    audio_link = f"{audio_url}{audio_file_name}" if (with_audio or audio_only) else None
-    text = None if audio_only else f"{chapter}.{verse}\nTelugu:\n{shloka_telugu}\n\nHindi:\n{shloka_hindi}\n\nEnglish:\n{shloka_english}"
+    audio_url = AUDIO_FULL_URL if (with_audio or full_audio) else AUDIO_QUARTER_URL
+    audio_link = f"{audio_url}{audio_file_name}" if with_audio else None
+    text = f"{chapter}.{verse}\nTelugu:\n{shloka_telugu}\n\nHindi:\n{shloka_hindi}\n\nEnglish:\n{shloka_english}" if not audio_only else None
     return text, audio_link
 
 # Function to get a random shloka from a chapter
@@ -107,8 +107,8 @@ def get_random_shloka(chapter: str, user_id: int, with_audio: bool = False, audi
     _, shloka_telugu = shlokas_telugu[chapter][shloka_index]
     _, shloka_english = shlokas_english[chapter][shloka_index]
     audio_file_name = f"{chapter}.{int(verse)}.mp3"
-    audio_link = f"{AUDIO_QUARTER_URL}{audio_file_name}" if (with_audio or audio_only) else None
-    text = None if audio_only else f"{chapter}.{verse}\nTelugu:\n{shloka_telugu}\n\nHindi:\n{shloka_hindi}\n\nEnglish:\n{shloka_english}"
+    audio_link = f"{AUDIO_QUARTER_URL}{audio_file_name}" if with_audio else None
+    text = f"{chapter}.{verse}\nTelugu:\n{shloka_telugu}\n\nHindi:\n{shloka_hindi}\n\nEnglish:\n{shloka_english}" if not audio_only else None
     return text, audio_link
 
 # Function to get a specific shloka by chapter and verse number
@@ -125,27 +125,28 @@ def get_specific_shloka(chapter: str, verse: str, user_id: int, with_audio: bool
             _, shloka_telugu = full_shlokas_telugu[chapter][idx]
             _, shloka_english = full_shlokas_english[chapter][idx]
             audio_file_name = f"{chapter}.{int(verse)}.mp3"
-            audio_link = f"{AUDIO_FULL_URL}{audio_file_name}" if (with_audio or audio_only) else None
+            audio_link = f"{AUDIO_FULL_URL}{audio_file_name}" if with_audio else None
             session_data[user_id]["last_chapter"] = chapter
             session_data[user_id]["last_index"] = idx
-            text = None if audio_only else f"{chapter}.{verse}\nTelugu:\n{shloka_telugu}\n\nHindi:\n{shloka_hindi}\n\nEnglish:\n{shloka_english}"
+            text = f"{chapter}.{verse}\nTelugu:\n{shloka_telugu}\n\nHindi:\n{shloka_hindi}\n\nEnglish:\n{shloka_english}" if not audio_only else None
             return text, audio_link
     return f"❌ Shloka {chapter}.{verse} not found!", None
 
 # Function to get the last requested shloka
 def get_last_shloka(user_id: int, with_audio: bool = False, audio_only: bool = False, full_audio: bool = False):
-    if user_id not in session_data or session_data[user_id]["last_index"] is None:
-        return "❌ No previous shloka found. Please request one first!", None
-    chapter = session_data[user_id]["last_chapter"]
-    shloka_index = session_data[user_id]["last_index"]
-    verse, shloka_hindi = full_shlokas_hindi[chapter][shloka_index]
-    _, shloka_telugu = full_shlokas_telugu[chapter][shloka_index]
-    _, shloka_english = full_shlokas_english[chapter][shloka_index]
-    audio_file_name = f"{chapter}.{int(verse)}.mp3"
-    audio_url = AUDIO_FULL_URL if full_audio else AUDIO_QUARTER_URL
-    audio_link = f"{audio_url}{audio_file_name}" if (with_audio or audio_only) else None
-    text = None if audio_only else f"{chapter}.{verse}\nTelugu:\n{shloka_telugu}\n\nHindi:\n{shloka_hindi}\n\nEnglish:\n{shloka_english}"
-    return text, audio_link
+    if user_id in session_data and session_data[user_id]["last_index"] is not None:
+        chapter = session_data[user_id]["last_chapter"]
+        shloka_index = session_data[user_id]["last_index"]
+        verse, shloka_hindi = full_shlokas_hindi[chapter][shloka_index]
+        _, shloka_telugu = full_shlokas_telugu[chapter][shloka_index]
+        _, shloka_english = full_shlokas_english[chapter][shloka_index]
+        audio_file_name = f"{chapter}.{int(verse)}.mp3"
+        # Ensure full audio when either full_audio or audio_only is True for "fao"
+        audio_url = AUDIO_FULL_URL if (full_audio or (audio_only and user_text == "fao")) else AUDIO_QUARTER_URL
+        audio_link = f"{audio_url}{audio_file_name}" if (with_audio or audio_only) else None  # Ensure audio for "fao"
+        text = f"{chapter}.{verse}\nTelugu:\n{shloka_telugu}\n\nHindi:\n{shloka_hindi}\n\nEnglish:\n{shloka_english}" if not audio_only else None
+        return text, audio_link
+    return "❌ No previous shloka found. Please request one first!", None
 
 # Main message handler
 async def handle_message(update: Update, context: CallbackContext):
@@ -153,12 +154,12 @@ async def handle_message(update: Update, context: CallbackContext):
     user_id = update.message.from_user.id
     
     # Check for audio modifiers
-    full_audio = user_text in ["fa", "fao"]
+    full_audio = user_text in ["fa", "fao"]  # Include "fao" as full audio
     with_audio = "a" in user_text[-2:] or user_text.endswith("a")
     audio_only = user_text.endswith("ao")
     if audio_only:
         user_text = user_text[:-2]  # Remove "ao"
-    elif with_audio and user_text not in ["fa", "fao"]:
+    elif with_audio and user_text not in ["fa", "fao"]:  # Avoid stripping 'a' from 'fa' or 'fao'
         user_text = user_text[:-1]  # Remove "a"
     
     # Handle specific shloka request (e.g., "18.1")
@@ -167,57 +168,37 @@ async def handle_message(update: Update, context: CallbackContext):
             chapter, verse = user_text.split(".", 1)
             if chapter.isdigit() and verse.isdigit():
                 response, audio_url = get_specific_shloka(chapter, verse, user_id, with_audio, audio_only)
-                if response and not audio_only:
+                if not audio_only:
                     await update.message.reply_text(response)
                 if audio_url:
-                    logger.info(f"Sending audio: {audio_url}")
-                    try:
-                        await update.message.reply_audio(audio_url)
-                    except Exception as e:
-                        logger.error(f"Failed to send audio: {e}")
-                        await update.message.reply_text("❌ Error sending audio!")
+                    await update.message.reply_audio(audio_url)
                 return
         except ValueError:
             pass
     
     if user_text.isdigit():
         response, audio_url = get_random_shloka(user_text, user_id, with_audio, audio_only)
-        if response and not audio_only:
+        if not audio_only:
             await update.message.reply_text(response)
         if audio_url:
-            logger.info(f"Sending audio: {audio_url}")
-            try:
-                await update.message.reply_audio(audio_url)
-            except Exception as e:
-                logger.error(f"Failed to send audio: {e}")
-                await update.message.reply_text("❌ Error sending audio!")
-    elif user_text in ["f", "fa", "fao"]:
+            await update.message.reply_audio(audio_url)
+    elif user_text in ["f", "fa", "fao"]:  # Handle "f", "fa", and "fao"
         response, audio_url = get_last_shloka(user_id, with_audio=(user_text == "fa"), audio_only=(user_text == "fao"), full_audio=full_audio)
-        if response and not audio_only:
+        if not audio_only:
             await update.message.reply_text(response)
         if audio_url:
-            logger.info(f"Sending audio: {audio_url}")
-            try:
-                await update.message.reply_audio(audio_url)
-            except Exception as e:
-                logger.error(f"Failed to send audio: {e}")
-                await update.message.reply_text("❌ Error sending audio!")
+            await update.message.reply_audio(audio_url)
     elif user_text == "n1":
         if user_id in session_data and session_data[user_id]["last_index"] is not None:
             chapter = session_data[user_id]["last_chapter"]
             next_idx = session_data[user_id]["last_index"] + 1
-            response, audio_url = get_shloka(chapter, next_idx, with_audio, audio_only, full_audio)
+            response, audio_url = get_shloka(chapter, next_idx, with_audio, audio_only, full_audio=with_audio)
             if response:
                 session_data[user_id]["last_index"] = next_idx
                 if not audio_only:
                     await update.message.reply_text(response)
                 if audio_url:
-                    logger.info(f"Sending audio: {audio_url}")
-                    try:
-                        await update.message.reply_audio(audio_url)
-                    except Exception as e:
-                        logger.error(f"Failed to send audio: {e}")
-                        await update.message.reply_text("❌ Error sending audio!")
+                    await update.message.reply_audio(audio_url)
             else:
                 await update.message.reply_text("❌ No next shloka available!")
         else:
@@ -231,7 +212,7 @@ async def handle_message(update: Update, context: CallbackContext):
             audio_urls = []
             for i in range(count):
                 next_idx = current_idx + i + 1
-                response, audio_url = get_shloka(chapter, next_idx, with_audio, audio_only, full_audio)
+                response, audio_url = get_shloka(chapter, next_idx, with_audio, audio_only, full_audio=with_audio)
                 if response:
                     responses.append(response)
                     if audio_url:
@@ -244,12 +225,7 @@ async def handle_message(update: Update, context: CallbackContext):
                     for response in responses:
                         await update.message.reply_text(response)
                 for audio_url in audio_urls:
-                    logger.info(f"Sending audio: {audio_url}")
-                    try:
-                        await update.message.reply_audio(audio_url)
-                    except Exception as e:
-                        logger.error(f"Failed to send audio: {e}")
-                        await update.message.reply_text("❌ Error sending audio!")
+                    await update.message.reply_audio(audio_url)
             else:
                 await update.message.reply_text("❌ No more shlokas available!")
         else:
@@ -263,7 +239,7 @@ async def handle_message(update: Update, context: CallbackContext):
             responses = []
             audio_urls = []
             for idx in range(start_idx, end_idx):
-                response, audio_url = get_shloka(chapter, idx, with_audio, audio_only, full_audio)
+                response, audio_url = get_shloka(chapter, idx, with_audio, audio_only, full_audio=with_audio)
                 if response:
                     responses.append(response)
                     if audio_url:
@@ -272,12 +248,7 @@ async def handle_message(update: Update, context: CallbackContext):
                 for response in responses:
                     await update.message.reply_text(response)
             for audio_url in audio_urls:
-                logger.info(f"Sending audio: {audio_url}")
-                try:
-                    await update.message.reply_audio(audio_url)
-                except Exception as e:
-                    logger.error(f"Failed to send audio: {e}")
-                    await update.message.reply_text("❌ Error sending audio!")
+                await update.message.reply_audio(audio_url)
         else:
             await update.message.reply_text("❌ Please request a shloka first!")
     elif user_text == "o":
@@ -287,12 +258,7 @@ async def handle_message(update: Update, context: CallbackContext):
             verse, _ = full_shlokas_hindi[chapter][shloka_index]
             audio_file_name = f"{chapter}.{int(verse)}.mp3"
             audio_link = f"{AUDIO_QUARTER_URL}{audio_file_name}"
-            logger.info(f"Sending audio: {audio_link}")
-            try:
-                await update.message.reply_audio(audio_link)
-            except Exception as e:
-                logger.error(f"Failed to send audio: {e}")
-                await update.message.reply_text("❌ Error sending audio!")
+            await update.message.reply_audio(audio_link)
         else:
             await update.message.reply_text("❌ No previous shloka found. Please request one first!")
     else:
@@ -301,8 +267,6 @@ async def handle_message(update: Update, context: CallbackContext):
             "0-18: Random shloka\n"
             "chapter.verse: Specific shloka (e.g., 18.1)\n"
             "f: Last full shloka\n"
-            "fa: Last full shloka with audio\n"
-            "fao: Last full shloka audio only\n"
             "n1: Next shloka\n"
             "n2-n5: Multiple next shlokas\n"
             "p: Previous 2, current & next 2 shlokas\n"
