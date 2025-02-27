@@ -132,7 +132,7 @@ def get_specific_shloka(chapter: str, verse: str, user_id: int, with_audio: bool
             return text, audio_link
     return f"❌ Shloka {chapter}.{verse} not found!", None
 
-# Function to get the last requested shloka
+# Function to get the last requested shloka (corrected)
 def get_last_shloka(user_id: int, with_audio: bool = False, audio_only: bool = False, full_audio: bool = False):
     if user_id in session_data and session_data[user_id]["last_index"] is not None:
         chapter = session_data[user_id]["last_chapter"]
@@ -141,9 +141,8 @@ def get_last_shloka(user_id: int, with_audio: bool = False, audio_only: bool = F
         _, shloka_telugu = full_shlokas_telugu[chapter][shloka_index]
         _, shloka_english = full_shlokas_english[chapter][shloka_index]
         audio_file_name = f"{chapter}.{int(verse)}.mp3"
-        # Ensure full audio when either full_audio or audio_only is True for "fao"
-        audio_url = AUDIO_FULL_URL if (full_audio or (audio_only and user_text == "fao")) else AUDIO_QUARTER_URL
-        audio_link = f"{audio_url}{audio_file_name}" if (with_audio or audio_only) else None  # Ensure audio for "fao"
+        audio_url = AUDIO_FULL_URL if full_audio else AUDIO_QUARTER_URL
+        audio_link = f"{audio_url}{audio_file_name}" if (with_audio or audio_only) else None
         text = f"{chapter}.{verse}\nTelugu:\n{shloka_telugu}\n\nHindi:\n{shloka_hindi}\n\nEnglish:\n{shloka_english}" if not audio_only else None
         return text, audio_link
     return "❌ No previous shloka found. Please request one first!", None
