@@ -117,13 +117,13 @@ def get_specific_shloka(chapter: str, verse: str, user_id: int, with_audio: bool
         session_data[user_id] = {"used_shlokas": {}, "last_chapter": None, "last_index": None}
     chapter = str(chapter)
     verse = str(verse)
-    if chapter not in shlokas_hindi:
+    if chapter not in full_shlokas_hindi:  # Changed from shlokas_hindi to full_shlokas_hindi
         return "❌ Invalid chapter number. Please enter a number between 0-18.", None
-    for idx, (v, _) in enumerate(shlokas_hindi[chapter]):
+    for idx, (v, _) in enumerate(full_shlokas_hindi[chapter]):
         if v == verse:
-            _, shloka_hindi = shlokas_hindi[chapter][idx]
-            _, shloka_telugu = shlokas_telugu[chapter][idx]
-            _, shloka_english = shlokas_english[chapter][idx]
+            verse_text, shloka_hindi = full_shlokas_hindi[chapter][idx]  # Use full shlokas
+            _, shloka_telugu = full_shlokas_telugu[chapter][idx]  # Use full shlokas
+            _, shloka_english = full_shlokas_english[chapter][idx]  # Use full shlokas
             audio_file_name = f"{chapter}.{int(verse)}.mp3"
             audio_link = f"{AUDIO_QUARTER_URL}{audio_file_name}" if with_audio else None
             session_data[user_id]["last_chapter"] = chapter
@@ -153,9 +153,9 @@ async def handle_message(update: Update, context: CallbackContext):
     user_id = update.message.from_user.id
     
     # Check for audio modifiers
+    full_audio = user_text == "fa"  # Check before stripping
     with_audio = "a" in user_text[-2:] or user_text.endswith("a")
     audio_only = user_text.endswith("ao")
-    full_audio = user_text == "fa"  # Full audio for 'fa'
     if audio_only:
         user_text = user_text[:-2]  # Remove "ao"
     elif with_audio:
@@ -275,7 +275,7 @@ async def handle_message(update: Update, context: CallbackContext):
             "Use /reset to start fresh"
         )
 
-# Start command handler
+# Command handlers
 async def start(update: Update, context: CallbackContext):
     await update.message.reply_text(
         "Jai Gurudatta!\n"
@@ -300,7 +300,6 @@ async def start(update: Update, context: CallbackContext):
         "Use /reset to start fresh"
     )
 
-# Reset command handler
 async def reset(update: Update, context: CallbackContext):
     user_id = update.message.from_user.id
     if user_id in session_data:
