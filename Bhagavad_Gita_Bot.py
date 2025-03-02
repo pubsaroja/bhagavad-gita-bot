@@ -2,6 +2,8 @@ import os
 import random
 import requests
 import logging
+import json
+import base64
 from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, CallbackContext
 
@@ -12,9 +14,17 @@ logger = logging.getLogger(__name__)
 # Bot Token & Webhook URL from environment variables
 TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 WEBHOOK_URL = os.getenv("WEBHOOK_URL")
+GITHUB_TOKEN = os.getenv("GITHUB_TOKEN")
 
 if not TOKEN:
     raise ValueError("❌ TELEGRAM_BOT_TOKEN is missing! Set it in the environment variables.")
+if not GITHUB_TOKEN:
+    raise ValueError("❌ GITHUB_TOKEN is missing! Set it in the environment variables.")
+
+# GitHub repository details
+REPO_OWNER = "pubsaroja"
+REPO_NAME = "bhagavad-gita-bot"
+MEANINGS_FILE = "meanings.txt"  # JSON file with meanings
 
 # File URLs for shloka data
 HINDI_WITH_UVACHA_URL = "https://raw.githubusercontent.com/pubsaroja/bhagavad-gita-bot/refs/heads/main/BG%20Hindi%20with%20Uvacha.txt"
@@ -71,6 +81,55 @@ full_shlokas_hindi = load_shlokas_from_github(HINDI_WITH_UVACHA_URL)
 full_shlokas_telugu = load_shlokas_from_github(TELUGU_WITH_UVACHA_URL)
 full_shlokas_english = load_shlokas_from_github(ENGLISH_WITH_UVACHA_URL)
 
+# Fetch meanings file from GitHub
+def fetch_meanings_file():
+    url = f"https://api.github.com/repos/{REPO_OWNER}/{REPO_NAME}/contents/{MEANINGS_FILE}"
+    headers = {"Authorization": f"token {GITHUB_TOKEN}"}
+    response = requests.get(url, headers=headers)
+    if response.status_code == 200:
+        content = base64.b64decode(response.json()["content"]).decode("utf-8")
+        return json.loads(content)
+    else:
+        logger.error(f"Failed to fetch {MEANINGS_FILE} from GitHub: {response.status_code}")
+        return None
+
+# Get meaning of a shloka
+def get_meaning(shloka_id):
+    meanings = fetch_meanings_file()
+    if meanings and shloka_id in meanings:
+        data = meanings[shloka_id]
+        # Format word meanings with newlines
+        word_meanings = "\n".join([f"{word}: {meaning}" for word, meaning in data["ప్రతిపదార్థం"].items()]) if data["ప్రతిపదార్థం"] else "No word meanings available."
+        translation = data["అర్థము"]
+        return f"Word Meanings:\n{word_meanings}\n\nTranslation:\n{translation}"
+    return f"Meaning for Shloka {shloka_id} not found."
+
+# Search for shlokas starting with a specific letter or syllable
+def search_shlokas(starting_with, max_results=10):
+    results = []
+    for chapter, shlokas in full_shlokas_telugu.items():
+        for verse, text in shlokas:
+            if text.strip().startswith(starting_with):
+                # Extract first quarter (assuming quarters are separated by newline)
+                first_quarter = text.split('\n')[0]
+                results.append((chapter, verse, first_quarter))
+                if len(results) >= max_results:
+                    return results
+    return results
+
+# Map Latin letters to Telugu syllables
+SYLLABLE_MAP = {
+    'a': 'అ', 'aa': 'ఆ', 'i': 'ఇ', 'ii': 'ఈ', 'u': 'ఉ', 'uu': 'ఊ',
+    'e': 'ఎ', 'ee': 'ఏ', 'ai': 'ఐ', 'o': 'ఒ', 'oo': 'ఓ', 'au': 'ఔ',
+    'ka': 'క', 'kha': 'ఖ', 'ga': 'గ', 'gha': 'ఘ', 'nga': 'ఙ',
+    'cha': 'చ', 'chha': 'ఛ', 'ja': 'జ', 'jha': 'ఝ', 'nya': 'ఞ',
+    'ta': 'ట', 'tha': 'ఠ', 'da': 'డ', 'dha': 'ఢ', 'na': 'ణ',
+    'tha': 'త', 'thha': 'థ', 'da': 'ద', 'dha': 'ధ', 'na': 'న',
+    'pa': 'ప', 'pha': 'ఫ', 'ba': 'బ', 'bha': 'భ', 'ma': 'మ',
+    'ya': 'య', 'ra': 'ర', 'la': 'ల', 'va': 'వ', 'sha': 'శ',
+    'ssa': 'ష', 'sa': 'స', 'ha': 'హ'
+}
+
 # Helper functions for chapter navigation
 def get_previous_chapter(chapter):
     return "18" if chapter == "1" else str(int(chapter) - 1)
@@ -112,7 +171,7 @@ def get_shloka(chapter: str, verse_idx: int, with_audio: bool = False, audio_onl
 # Get a random shloka from a chapter
 def get_random_shloka(chapter: str, user_id: int, with_audio: bool = False, audio_only: bool = False):
     if user_id not in session_data:
-        session_data[user_id] = {"used_shlokas": {}, "last_chapter": None, "last_index": None}
+        session_data[user_id] = {"used_shlokas": {}, "last_chapter": None, "last_index": None, "search_results": []}
     chapter = str(chapter).strip()
     if chapter == "0":
         chapter = random.choice(list(shlokas_hindi.keys()))
@@ -138,7 +197,7 @@ def get_random_shloka(chapter: str, user_id: int, with_audio: bool = False, audi
 # Get a specific shloka by chapter and verse number
 def get_specific_shloka(chapter: str, verse: str, user_id: int, with_audio: bool = False, audio_only: bool = False, full_audio: bool = False):
     if user_id not in session_data:
-        session_data[user_id] = {"used_shlokas": {}, "last_chapter": None, "last_index": None}
+        session_data[user_id] = {"used_shlokas": {}, "last_chapter": None, "last_index": None, "search_results": []}
     chapter = str(chapter)
     verse = str(verse)
     if chapter not in full_shlokas_hindi:
@@ -180,7 +239,58 @@ async def handle_message(update: Update, context: CallbackContext):
 
     logger.info(f"Parsed command: {command}, audio_only: {audio_only}, with_audio: {with_audio}, full_audio: {full_audio}")
 
-    # Handle specific shloka request (e.g., "18.1", "18.1a", "18.1ao")
+    # Handle search requests (e.g., 'a', 'ba')
+    if command in SYLLABLE_MAP:
+        starting_with = SYLLABLE_MAP[command]
+        results = search_shlokas(starting_with)
+        if results:
+            session_data[user_id]["search_results"] = results
+            response = f"Found shlokas starting with '{starting_with}':\n"
+            for i, (chapter, verse, first_quarter) in enumerate(results, 1):
+                response += f"{i}. {chapter}.{verse}: {first_quarter}\n"
+            response += "Reply with the number to see the full shloka."
+            await update.message.reply_text(response)
+        else:
+            await update.message.reply_text(f"No shlokas found starting with '{starting_with}'.")
+        return
+
+    # Handle selection from search results (e.g., '1', '2')
+    if command.isdigit() and "search_results" in session_data.get(user_id, {}):
+        selection = int(command) - 1
+        results = session_data[user_id]["search_results"]
+        if 0 <= selection < len(results):
+            chapter, verse, _ = results[selection]
+            response, audio_url = get_specific_shloka(chapter, verse, user_id, with_audio, audio_only, full_audio)
+            if not audio_only and response:
+                await update.message.reply_text(response)
+            if audio_url:
+                await update.message.reply_audio(audio_url)
+            session_data[user_id]["search_results"] = []  # Clear results after selection
+        else:
+            await update.message.reply_text("Invalid selection. Please try again.")
+        return
+
+    # Handle meanings command (e.g., 'mn', 'mn 1.1')
+    if command == "mn" or command.startswith("mn "):
+        parts = command.split()
+        if len(parts) == 1:
+            if user_id in session_data and session_data[user_id]["last_index"] is not None:
+                chapter = session_data[user_id]["last_chapter"]
+                verse, _ = full_shlokas_hindi[chapter][session_data[user_id]["last_index"]]
+                shloka_id = f"{chapter}.{verse}"
+                meaning = get_meaning(shloka_id)
+                await update.message.reply_text(meaning)
+            else:
+                await update.message.reply_text("❌ Please request a Shloka first!")
+        elif len(parts) == 2:
+            shloka_id = parts[1]
+            meaning = get_meaning(shloka_id)
+            await update.message.reply_text(meaning)
+        else:
+            await update.message.reply_text("❌ Invalid format. Use 'mn' or 'mn <shloka_id>' (e.g., 'mn 1.1')")
+        return
+
+    # Handle specific shloka request (e.g., "18.1")
     if "." in command:
         try:
             chapter, verse = command.split(".", 1)
@@ -190,22 +300,20 @@ async def handle_message(update: Update, context: CallbackContext):
                     await update.message.reply_text(response)
                 if audio_url:
                     await update.message.reply_audio(audio_url)
-                logger.info(f"Updated session for user {user_id}: chapter {chapter}, index {session_data[user_id]['last_index']}")
                 return
         except ValueError:
             pass
 
-    # Handle chapter number or random shloka (e.g., "1", "1a", "1ao")
+    # Handle chapter number or random shloka (e.g., "1")
     if command.isdigit():
         response, audio_url = get_random_shloka(command, user_id, with_audio, audio_only)
         if not audio_only and response:
             await update.message.reply_text(response)
         if audio_url:
             await update.message.reply_audio(audio_url)
-        logger.info(f"Updated session for user {user_id}: chapter {session_data[user_id]['last_chapter']}, index {session_data[user_id]['last_index']}")
         return
 
-    # Handle last shloka (e.g., "f", "fa", "fao")
+    # Handle last shloka (e.g., "f")
     if command == "f":
         response, audio_url = get_last_shloka(user_id, with_audio, audio_only, full_audio)
         if not audio_only and response:
@@ -214,7 +322,7 @@ async def handle_message(update: Update, context: CallbackContext):
             await update.message.reply_audio(audio_url)
         return
 
-    # Handle next shloka (e.g., "n1", "n1a", "n1ao", "n2", etc.)
+    # Handle next shloka (e.g., "n1")
     if command.startswith("n") and command[1:].isdigit():
         if user_id in session_data and session_data[user_id]["last_index"] is not None:
             chapter = session_data[user_id]["last_chapter"]
@@ -241,7 +349,6 @@ async def handle_message(update: Update, context: CallbackContext):
                             await update.message.reply_text(response)
                 for audio_url in audio_urls:
                     await update.message.reply_audio(audio_url)
-                logger.info(f"Updated session for user {user_id}: chapter {chapter}, index {session_data[user_id]['last_index']}")
             else:
                 await update.message.reply_text("❌ No next Shloka available!")
         else:
@@ -291,7 +398,7 @@ async def handle_message(update: Update, context: CallbackContext):
             shloka_index = session_data[user_id]["last_index"]
             verse, _ = full_shlokas_hindi[chapter][shloka_index]
             audio_file_name = f"{chapter}.{int(verse)}.mp3"
-            audio_link = f"{AUDIO_FULL_URL}{audio_file_name}"
+            audio_link = f"{AUDIO_QUARTER_URL}{audio_file_name}"
             await update.message.reply_audio(audio_link)
         else:
             await update.message.reply_text("❌ No previous Shloka found. Please request one first!")
@@ -300,14 +407,18 @@ async def handle_message(update: Update, context: CallbackContext):
     # Handle invalid input
     await update.message.reply_text(
         "❌ Invalid input. Please use:\n"
+        "a, ba, etc.: Search shlokas by starting letter\n"
+        "1-10: Select a shloka from search results\n"
         "0-18: Random Shloka\n"
         "chapter.verse: Specific Shloka (e.g., 18.1)\n"
         "f: Last full Shloka\n"
         "n1-n5: Next Shloka(s)\n"
         "p: Previous 2, current & next 2 Shlokas\n"
+        "mn: Meaning of last Shloka\n"
+        "mn <shloka_id>: Meaning of specific Shloka (e.g., 'mn 1.1')\n"
         "o: Audio of last Shloka\n"
-        "Add 'a' for audio with text (e.g., '1a', '18.1a')\n"
-        "Add 'ao' for audio only (e.g., '1ao', '18.1ao')\n"
+        "Add 'a' for audio with text (e.g., '1a')\n"
+        "Add 'ao' for audio only (e.g., '1ao')\n"
         "Use /reset to start fresh"
     )
 
@@ -316,6 +427,8 @@ async def start(update: Update, context: CallbackContext):
     await update.message.reply_text(
         "Jai Gurudatta!\n"
         "Welcome to Srimad Bhagavadgita Random Practice chatbot.\n"
+        "a, ba, etc. → Search shlokas by starting letter\n"
+        "1-10 → Select shloka from search results\n"
         "0-18 → Random Shloka from chapter\n"
         "0a → With audio\n"
         "0ao → Audio only\n"
@@ -332,6 +445,8 @@ async def start(update: Update, context: CallbackContext):
         "p → Previous 2, current & next 2\n"
         "pa → Same with audio\n"
         "pao → Same audio only\n"
+        "mn → Meaning of last Shloka\n"
+        "mn <shloka_id> → Meaning of specific Shloka (e.g., 'mn 1.1')\n"
         "o → Audio of last Shloka\n"
         "Use /reset to start fresh"
     )
