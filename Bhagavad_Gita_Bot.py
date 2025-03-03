@@ -19,7 +19,7 @@ GITHUB_TOKEN = os.getenv("GITHUB_TOKEN")
 if not TOKEN:
     raise ValueError("❌ TELEGRAM_BOT_TOKEN is missing! Set it in the environment variables.")
 if not GITHUB_TOKEN:
-    logger.warning("❌ GITHUB_TOKEN is missing! Meanings functionality will be unavailable. Set it in the environment variables.")
+    logger.warning("❌ GITHUB_TOKEN is missing! Meanings functionality will be unavailable.")
 
 # GitHub repository details
 REPO_OWNER = "pubsaroja"
@@ -84,15 +84,28 @@ full_shlokas_english = load_shlokas_from_github(ENGLISH_WITH_UVACHA_URL)
 # Fetch meanings file from GitHub
 def fetch_meanings_file():
     if not GITHUB_TOKEN:
-        return None  # Return None if token is missing, handled by get_meaning
+        logger.error("No GITHUB_TOKEN provided.")
+        return None
     url = f"https://api.github.com/repos/{REPO_OWNER}/{REPO_NAME}/contents/{MEANINGS_FILE}"
     headers = {"Authorization": f"token {GITHUB_TOKEN}"}
-    response = requests.get(url, headers=headers)
-    if response.status_code == 200:
-        content = base64.b64decode(response.json()["content"]).decode("utf-8")
+    try:
+        response = requests.get(url, headers=headers, timeout=10)
+        response.raise_for_status()
+        json_response = response.json()
+        logger.info(f"GitHub API response: {json.dumps(json_response, indent=2)}")  # Log raw response for debugging
+        if "content" not in json_response:
+            logger.error(f"Unexpected GitHub API response: 'content' field missing.")
+            return None
+        content = base64.b64decode(json_response["content"]).decode("utf-8")
+        if not content.strip():
+            logger.error("Fetched meanings.txt is empty.")
+            return None
         return json.loads(content)
-    else:
-        logger.error(f"Failed to fetch {MEANINGS_FILE} from GitHub: {response.status_code}")
+    except requests.RequestException as e:
+        logger.error(f"Failed to fetch {MEANINGS_FILE} from GitHub: {str(e)}")
+        return None
+    except json.JSONDecodeError as e:
+        logger.error(f"Failed to parse meanings.txt as JSON: {str(e)}")
         return None
 
 # Get meaning of a shloka
@@ -104,7 +117,7 @@ def get_meaning(shloka_id):
         word_meanings = "\n".join([f"{word}: {meaning}" for word, meaning in data["ప్రతిపదార్థం"].items()]) if data["ప్రతిపదార్థం"] else "No word meanings available."
         translation = data["అర్థము"]
         return f"Word Meanings:\n{word_meanings}\n\nTranslation:\n{translation}"
-    return f"Meaning for Shloka {shloka_id} not found. (GitHub token may be missing or invalid.)"
+    return f"Meaning for Shloka {shloka_id} not found. (Check GitHub token or meanings.txt file.)"
 
 # Search for shlokas starting with a specific letter or syllable
 def search_shlokas(starting_with, max_results=10):
@@ -112,7 +125,6 @@ def search_shlokas(starting_with, max_results=10):
     for chapter, shlokas in full_shlokas_telugu.items():
         for verse, text in shlokas:
             if text.strip().startswith(starting_with):
-                # Extract first quarter (assuming quarters are separated by newline)
                 first_quarter = text.split('\n')[0]
                 results.append((chapter, verse, first_quarter))
                 if len(results) >= max_results:
@@ -140,7 +152,6 @@ def get_next_chapter(chapter):
     return "1" if chapter == "18" else str(int(chapter) + 1)
 
 def get_shloka_at_offset(current_chapter, current_idx, offset):
-    """Calculate chapter and index for a shloka at a given offset, handling chapter boundaries."""
     chapter = current_chapter
     idx = current_idx + offset
     while idx < 0:
