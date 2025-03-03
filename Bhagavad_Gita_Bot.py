@@ -128,7 +128,7 @@ def get_meaning(shloka_id):
 # Search for shlokas starting with a specific letter or syllable
 def search_shlokas(starting_with, max_results=10, offset=0):
     results = []
-    for chapter, shlokas in full_shlokas_telugu.items():
+    for chapter, shlokas in shlokas_telugu.items():
         for verse, text in shlokas:
             if text.strip().startswith(starting_with):
                 first_quarter = text.split('\n')[0]
