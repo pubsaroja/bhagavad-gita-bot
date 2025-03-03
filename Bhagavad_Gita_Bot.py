@@ -81,7 +81,7 @@ full_shlokas_hindi = load_shlokas_from_github(HINDI_WITH_UVACHA_URL)
 full_shlokas_telugu = load_shlokas_from_github(TELUGU_WITH_UVACHA_URL)
 full_shlokas_english = load_shlokas_from_github(ENGLISH_WITH_UVACHA_URL)
 
-# Fetch meanings file from GitHub
+# Fetch meanings file from GitHub using download_url
 def fetch_meanings_file():
     if not GITHUB_TOKEN:
         logger.error("No GITHUB_TOKEN provided.")
@@ -89,14 +89,20 @@ def fetch_meanings_file():
     url = f"https://api.github.com/repos/{REPO_OWNER}/{REPO_NAME}/contents/{MEANINGS_FILE}"
     headers = {"Authorization": f"token {GITHUB_TOKEN}"}
     try:
+        # Step 1: Get the file metadata to retrieve download_url
         response = requests.get(url, headers=headers, timeout=10)
         response.raise_for_status()
         json_response = response.json()
         logger.info(f"GitHub API response: {json.dumps(json_response, indent=2)}")
-        if "content" not in json_response:
-            logger.error(f"Unexpected GitHub API response: 'content' field missing.")
+        if "download_url" not in json_response:
+            logger.error(f"Unexpected GitHub API response: 'download_url' field missing.")
             return None
-        content = base64.b64decode(json_response["content"]).decode("utf-8")
+        download_url = json_response["download_url"]
+
+        # Step 2: Fetch the raw file content using download_url
+        raw_response = requests.get(download_url, headers=headers, timeout=10)
+        raw_response.raise_for_status()
+        content = raw_response.text
         if not content.strip():
             logger.error("Fetched meanings.txt is empty.")
             return None
