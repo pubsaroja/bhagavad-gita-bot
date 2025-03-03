@@ -89,7 +89,6 @@ def fetch_meanings_file():
     url = f"https://api.github.com/repos/{REPO_OWNER}/{REPO_NAME}/contents/{MEANINGS_FILE}"
     headers = {"Authorization": f"token {GITHUB_TOKEN}"}
     try:
-        # Step 1: Get the file metadata to retrieve download_url
         response = requests.get(url, headers=headers, timeout=10)
         response.raise_for_status()
         json_response = response.json()
@@ -99,7 +98,6 @@ def fetch_meanings_file():
             return None
         download_url = json_response["download_url"]
 
-        # Step 2: Fetch the raw file content using download_url
         raw_response = requests.get(download_url, headers=headers, timeout=10)
         raw_response.raise_for_status()
         content = raw_response.text
@@ -253,13 +251,12 @@ async def handle_message(update: Update, context: CallbackContext):
 
         # Check for audio modifiers and preserve the base command
         audio_only = original_text.endswith("ao")
-        with_audio = original_text.endswith("a") and not audio_only
+        with_audio = original_text.endswith("a") and not audio_only and original_text not in SYLLABLE_MAP
+        base_command = original_text
         if audio_only:
             base_command = original_text[:-2]  # Remove 'ao'
         elif with_audio:
-            base_command = original_text[:-1]  # Remove 'a'
-        else:
-            base_command = original_text
+            base_command = original_text[:-1]  # Remove 'a' only if not a syllable
 
         # Determine if full audio is needed
         full_audio = base_command in ["f", "n1", "n2", "n3", "n4", "n5", "p"] or with_audio or audio_only
