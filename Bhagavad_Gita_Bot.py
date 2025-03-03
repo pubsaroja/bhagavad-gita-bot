@@ -24,7 +24,7 @@ if not GITHUB_TOKEN:
 # GitHub repository details
 REPO_OWNER = "pubsaroja"
 REPO_NAME = "bhagavad-gita-bot"
-MEANINGS_FILE = "meanings.txt"  # JSON file with meanings
+MEANINGS_FILE = "meanings.txt"
 
 # File URLs for shloka data
 HINDI_WITH_UVACHA_URL = "https://raw.githubusercontent.com/pubsaroja/bhagavad-gita-bot/refs/heads/main/BG%20Hindi%20with%20Uvacha.txt"
@@ -100,7 +100,7 @@ def fetch_meanings_file():
         if not content.strip():
             logger.error("Fetched meanings.txt is empty.")
             return None
-        logger.info(f"Raw meanings.txt content: {content[:100]}...")  # Log first 100 chars
+        logger.info(f"Raw meanings.txt content: {content[:100]}...")
         return json.loads(content)
     except requests.RequestException as e:
         logger.error(f"Failed to fetch {MEANINGS_FILE} from GitHub: {str(e)}")
@@ -485,12 +485,8 @@ def main():
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("reset", reset))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
-    if WEBHOOK_URL:
-        logger.info(f"Setting webhook: {WEBHOOK_URL}")
-        app.run_webhook(listen="0.0.0.0", port=int(os.getenv("PORT", 5000)), webhook_url=WEBHOOK_URL)
-    else:
-        logger.info("Starting polling mode")
-        app.run_polling()
+    logger.info("Starting polling mode")
+    app.run_polling()
     logger.info("Bot is running!")
 
 if __name__ == "__main__":
