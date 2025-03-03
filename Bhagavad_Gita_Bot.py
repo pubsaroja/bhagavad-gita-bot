@@ -126,16 +126,17 @@ def get_meaning(shloka_id):
     return f"Meaning for Shloka {shloka_id} not found in meanings.txt."
 
 # Search for shlokas starting with a specific letter or syllable
-def search_shlokas(starting_with, max_results=10):
+def search_shlokas(starting_with, max_results=10, offset=0):
     results = []
     for chapter, shlokas in full_shlokas_telugu.items():
         for verse, text in shlokas:
             if text.strip().startswith(starting_with):
                 first_quarter = text.split('\n')[0]
                 results.append((chapter, verse, first_quarter))
-                if len(results) >= max_results:
-                    return results
-    return results
+    total_results = len(results)
+    if max_results == -1:  # Return all results
+        return results[offset:], total_results
+    return results[offset:offset + max_results], total_results
 
 # Map Latin letters to Telugu syllables
 SYLLABLE_MAP = {
@@ -190,7 +191,7 @@ def get_shloka(chapter: str, verse_idx: int, with_audio: bool = False, audio_onl
 # Get a random shloka from a chapter
 def get_random_shloka(chapter: str, user_id: int, with_audio: bool = False, audio_only: bool = False):
     if user_id not in session_data:
-        session_data[user_id] = {"used_shlokas": {}, "last_chapter": None, "last_index": None, "search_results": []}
+        session_data[user_id] = {"used_shlokas": {}, "last_chapter": None, "last_index": None, "search_results": [], "search_state": {}}
     chapter = str(chapter).strip()
     if chapter == "0":
         chapter = random.choice(list(shlokas_hindi.keys()))
@@ -216,7 +217,7 @@ def get_random_shloka(chapter: str, user_id: int, with_audio: bool = False, audi
 # Get a specific shloka by chapter and verse number
 def get_specific_shloka(chapter: str, verse: str, user_id: int, with_audio: bool = False, audio_only: bool = False, full_audio: bool = False):
     if user_id not in session_data:
-        session_data[user_id] = {"used_shlokas": {}, "last_chapter": None, "last_index": None, "search_results": []}
+        session_data[user_id] = {"used_shlokas": {}, "last_chapter": None, "last_index": None, "search_results": [], "search_state": {}}
     chapter = str(chapter)
     verse = str(verse)
     if chapter not in full_shlokas_hindi:
@@ -289,16 +290,51 @@ async def handle_message(update: Update, context: CallbackContext):
         # Handle search requests (e.g., 'a', 'ba')
         if base_command in SYLLABLE_MAP:
             starting_with = SYLLABLE_MAP[base_command]
-            results = search_shlokas(starting_with)
+            results, total_results = search_shlokas(starting_with, max_results=10)
+            session_data[user_id]["search_state"] = {
+                "starting_with": starting_with,
+                "all_results": results + search_shlokas(starting_with, max_results=-1, offset=10)[0],  # Store all results
+                "offset": 10  # Start after the first 10
+            }
             if results:
-                session_data[user_id]["search_results"] = results
-                response = f"Found shlokas starting with '{starting_with}':\n"
+                response = f"Found {total_results} shlokas starting with '{starting_with}' (showing first 10):\n"
                 for i, (chapter, verse, first_quarter) in enumerate(results, 1):
                     response += f"{i}. {chapter}.{verse}: {first_quarter}\n"
-                response += "Reply with the number to see the full shloka."
+                if total_results > 10:
+                    response += "Reply 'more' for the next 10 or 'all' for all remaining shlokas."
+                else:
+                    response += "These are all the shlokas found."
+                response += "\nOr reply with a number to see the full shloka."
+                session_data[user_id]["search_results"] = results
                 await update.message.reply_text(response)
             else:
                 await update.message.reply_text(f"No shlokas found starting with '{starting_with}'.")
+            return
+
+        # Handle 'more' or 'all' for additional search results
+        if base_command in ["more", "all"] and "search_state" in session_data.get(user_id, {}):
+            search_state = session_data[user_id]["search_state"]
+            starting_with = search_state["starting_with"]
+            all_results = search_state["all_results"]
+            offset = search_state["offset"]
+            if base_command == "more":
+                results = all_results[offset:offset + 10]
+                session_data[user_id]["search_state"]["offset"] += 10
+            else:  # 'all'
+                results = all_results[offset:]
+                session_data[user_id]["search_state"]["offset"] = len(all_results)  # Mark as exhausted
+            if results:
+                response = f"More shlokas starting with '{starting_with}':\n"
+                start_index = offset + 1 if base_command == "more" else offset + 1
+                for i, (chapter, verse, first_quarter) in enumerate(results, start_index):
+                    response += f"{i}. {chapter}.{verse}: {first_quarter}\n"
+                if base_command == "more" and session_data[user_id]["search_state"]["offset"] < len(all_results):
+                    response += "Reply 'more' for the next 10 or 'all' for all remaining shlokas."
+                response += "\nOr reply with a number to see the full shloka."
+                session_data[user_id]["search_results"] = results
+                await update.message.reply_text(response)
+            else:
+                await update.message.reply_text(f"No more shlokas found starting with '{starting_with}'.")
             return
 
         # Handle selection from search results (e.g., '1', '2')
@@ -428,6 +464,8 @@ async def handle_message(update: Update, context: CallbackContext):
         await update.message.reply_text(
             "❌ Invalid input. Please use:\n"
             "a, ba, etc.: Search shlokas by starting letter\n"
+            "more: Next 10 search results\n"
+            "all: All remaining search results\n"
             "1-10: Select a shloka from search results\n"
             "0-18: Random Shloka\n"
             "chapter.verse: Specific Shloka (e.g., 18.1)\n"
@@ -452,6 +490,8 @@ async def start(update: Update, context: CallbackContext):
         "Jai Gurudatta!\n"
         "Welcome to Srimad Bhagavadgita Random Practice chatbot.\n"
         "a, ba, etc. → Search shlokas by starting letter\n"
+        "more → Next 10 search results\n"
+        "all → All remaining search results\n"
         "1-10 → Select shloka from search results\n"
         "0-18 → Random Shloka from chapter\n"
         "0a → With audio\n"
