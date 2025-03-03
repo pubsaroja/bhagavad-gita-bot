@@ -92,7 +92,7 @@ def fetch_meanings_file():
         response = requests.get(url, headers=headers, timeout=10)
         response.raise_for_status()
         json_response = response.json()
-        logger.info(f"GitHub API response: {json.dumps(json_response, indent=2)}")  # Log raw response for debugging
+        logger.info(f"GitHub API response: {json.dumps(json_response, indent=2)}")
         if "content" not in json_response:
             logger.error(f"Unexpected GitHub API response: 'content' field missing.")
             return None
@@ -100,6 +100,7 @@ def fetch_meanings_file():
         if not content.strip():
             logger.error("Fetched meanings.txt is empty.")
             return None
+        logger.info(f"Raw meanings.txt content: {content[:100]}...")  # Log first 100 chars for debugging
         return json.loads(content)
     except requests.RequestException as e:
         logger.error(f"Failed to fetch {MEANINGS_FILE} from GitHub: {str(e)}")
@@ -111,13 +112,14 @@ def fetch_meanings_file():
 # Get meaning of a shloka
 def get_meaning(shloka_id):
     meanings = fetch_meanings_file()
-    if meanings and shloka_id in meanings:
+    if meanings is None:
+        return "❌ Could not fetch meanings. Check GitHub token or meanings.txt file."
+    if shloka_id in meanings:
         data = meanings[shloka_id]
-        # Format word meanings with newlines
         word_meanings = "\n".join([f"{word}: {meaning}" for word, meaning in data["ప్రతిపదార్థం"].items()]) if data["ప్రతిపదార్థం"] else "No word meanings available."
         translation = data["అర్థము"]
         return f"Word Meanings:\n{word_meanings}\n\nTranslation:\n{translation}"
-    return f"Meaning for Shloka {shloka_id} not found. (Check GitHub token or meanings.txt file.)"
+    return f"Meaning for Shloka {shloka_id} not found in meanings.txt."
 
 # Search for shlokas starting with a specific letter or syllable
 def search_shlokas(starting_with, max_results=10):
@@ -421,70 +423,3 @@ async def handle_message(update: Update, context: CallbackContext):
         else:
             await update.message.reply_text("❌ No previous Shloka found. Please request one first!")
         return
-
-    # Handle invalid input
-    await update.message.reply_text(
-        "❌ Invalid input. Please use:\n"
-        "a, ba, etc.: Search shlokas by starting letter\n"
-        "1-10: Select a shloka from search results\n"
-        "0-18: Random Shloka\n"
-        "chapter.verse: Specific Shloka (e.g., 18.1)\n"
-        "f: Last full Shloka\n"
-        "n1-n5: Next Shloka(s)\n"
-        "p: Previous 2, current & next 2 Shlokas\n"
-        "mn: Meaning of last Shloka\n"
-        "mn <shloka_id>: Meaning of specific Shloka (e.g., 'mn 1.1')\n"
-        "o: Audio of last Shloka\n"
-        "Add 'a' for audio with text (e.g., '1a')\n"
-        "Add 'ao' for audio only (e.g., '1ao')\n"
-        "Use /reset to start fresh"
-    )
-
-# Command handlers
-async def start(update: Update, context: CallbackContext):
-    await update.message.reply_text(
-        "Jai Gurudatta!\n"
-        "Welcome to Srimad Bhagavadgita Random Practice chatbot.\n"
-        "a, ba, etc. → Search shlokas by starting letter\n"
-        "1-10 → Select shloka from search results\n"
-        "0-18 → Random Shloka from chapter\n"
-        "0a → With audio\n"
-        "0ao → Audio only\n"
-        "chapter.verse → Specific Shloka (e.g., 18.1)\n"
-        "chapter.verse + a → With audio (e.g., 18.1a)\n"
-        "chapter.verse + ao → Audio only (e.g., 18.1ao)\n"
-        "f → Full last Shloka\n"
-        "fa → Full last Shloka with full audio\n"
-        "fao → Full last Shloka audio only\n"
-        "n1 → Next Shloka\n"
-        "n1a → Next with audio\n"
-        "n1ao → Next audio only\n"
-        "n2-n5 → Multiple next Shlokas\n"
-        "p → Previous 2, current & next 2\n"
-        "pa → Same with audio\n"
-        "pao → Same audio only\n"
-        "mn → Meaning of last Shloka\n"
-        "mn <shloka_id> → Meaning of specific Shloka (e.g., 'mn 1.1')\n"
-        "o → Audio of last Shloka\n"
-        "Use /reset to start fresh"
-    )
-
-async def reset(update: Update, context: CallbackContext):
-    user_id = update.message.from_user.id
-    if user_id in session_data:
-        del session_data[user_id]
-    await update.message.reply_text("✅ Session reset! Start anew with any chapter.")
-
-# Main function to run the bot
-def main():
-    app = Application.builder().token(TOKEN).build()
-    app.add_handler(CommandHandler("start", start))
-    app.add_handler(CommandHandler("reset", reset))
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
-    if WEBHOOK_URL:
-        app.run_webhook(listen="0.0.0.0", port=int(os.getenv("PORT", 5000)), webhook_url=WEBHOOK_URL)
-    else:
-        app.run_polling()
-
-if __name__ == "__main__":
-    main()
