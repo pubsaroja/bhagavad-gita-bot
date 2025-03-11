@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 # Bot Token & GitHub URL
 TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 GITHUB_TOKEN = os.getenv("GITHUB_TOKEN")
-WORD_INDEX_URL = "https://raw.githubusercontent.com/yourusername/bhagavad-gita-bot/main/gita_word_index.txt"  # Update with your repo URL
+WORD_INDEX_URL = "https://raw.githubusercontent.com/pubsaroja/bhagavad-gita-bot/main/gita_word_index.txt"  # Update with your repo URL
 
 if not TOKEN:
     raise ValueError("❌ TELEGRAM_BOT_TOKEN is missing!")
