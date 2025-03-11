@@ -241,13 +241,20 @@ async def handle_message(update: Update, context: CallbackContext):
         base_command = original_text
         if audio_only:
             base_command = original_text[:-2]  # Remove 'ao'
-        elif with_audio:
-            base_command = original_text[:-1]  # Remove 'a' only if not a syllable
+        elif with_audio and not original_text.startswith("w "):  # Only apply 'a' modifier if not a word search
+            base_command = original_text[:-1]  # Remove 'a' only if not a syllable or word search
 
         # Determine if full audio is needed
-        full_audio = base_command in ["f", "n1", "n2", "n3", "n4", "n5", "p"] or with_audio or audio_only
+        full_audio = base_command in ["f", "n1", "n2", "n3", "n4", "n5", "p"] or (with_audio and not original_text.startswith("w "))
 
         logger.info(f"Base command: {base_command}, audio_only: {audio_only}, with_audio: {with_audio}, full_audio: {full_audio}")
+
+        # Handle word search (e.g., 'w anagha')
+        if base_command.startswith("w "):
+            term = base_command[2:].strip()
+            response = search_word_occurrences(term)
+            await update.message.reply_text(response)
+            return
 
         # Handle specific shloka request (e.g., "18.1", "18.1a", "18.1ao")
         if "." in base_command:
@@ -262,6 +269,8 @@ async def handle_message(update: Update, context: CallbackContext):
                     return
             except ValueError:
                 pass
+
+        # ... (rest of the function remains unchanged)
 
         # Handle chapter number for random shloka (e.g., "0", "1", "0a", "1ao")
         if base_command.isdigit():
