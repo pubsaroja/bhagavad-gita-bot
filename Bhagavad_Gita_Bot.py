@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 # Bot Token & GitHub URL
 TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 GITHUB_TOKEN = os.getenv("GITHUB_TOKEN")
-WORD_INDEX_URL = "https://raw.githubusercontent.com/pubsaroja/bhagavad-gita-bot/refs/heads/main/gita_word_index.txt"  # Replace with your actual URL
+WORD_INDEX_URL = "https://raw.githubusercontent.com/<username>/<repo>/main/gita_word_index.txt"  # Replace with your actual URL
 
 if not TOKEN:
     raise ValueError("❌ TELEGRAM_BOT_TOKEN is missing!")
@@ -21,7 +21,18 @@ if not TOKEN:
 # Session data
 session_data = {}
 
-# Load existing shloka data (unchanged)
+# Syllable map for command processing
+SYLLABLE_MAP = {
+    "f": "Full",
+    "n1": "Next 1st quarter",
+    "n2": "Next 2nd quarter",
+    "n3": "Next 3rd quarter",
+    "n4": "Next 4th quarter",
+    "n5": "Next full",
+    "p": "Previous full",
+}
+
+# Load existing shloka data
 HINDI_WITH_UVACHA_URL = "https://raw.githubusercontent.com/pubsaroja/bhagavad-gita-bot/refs/heads/main/BG%20Hindi%20with%20Uvacha.txt"
 TELUGU_WITH_UVACHA_URL = "https://raw.githubusercontent.com/pubsaroja/bhagavad-gita-bot/refs/heads/main/BG%20Telugu%20with%20Uvacha.txt"
 ENGLISH_WITH_UVACHA_URL = "https://raw.githubusercontent.com/pubsaroja/bhagavad-gita-bot/refs/heads/main/BG%20English%20with%20Uvacha.txt"
@@ -81,12 +92,10 @@ def load_word_index():
         line = line.strip()
         if not line or line.startswith("%"):
             continue
-        # Extract term and verse (if present)
         parts = line.split(" = ")
         if len(parts) < 2:
             continue
         term = parts[0].strip().lower()  # Case-insensitive search
-        # Check if verse is present in parentheses
         verse_match = line.split("(")
         if len(verse_match) > 1:
             verse = verse_match[1].split(")")[0].strip()
@@ -107,7 +116,7 @@ def search_word_occurrences(term):
     occurrences = len(word_index[term])
     response = f"Found '{term}' in {occurrences} verse(s):\n"
     
-    for verse in sorted(word_index[term]):  # Sort for consistent output
+    for verse in sorted(word_index[term]):
         chapter, verse_num = verse.split(".")
         response += f"{verse}:\n"
         
@@ -136,7 +145,7 @@ def search_word_occurrences(term):
     
     return response
 
-# Rest of the code remains unchanged (abbreviated for brevity)
+# Message handler
 async def handle_message(update: Update, context: CallbackContext):
     try:
         original_text = update.message.text.strip().lower()
@@ -161,20 +170,24 @@ async def handle_message(update: Update, context: CallbackContext):
             await update.message.reply_text(response)
             return
 
-        # ... [Rest of the handle_message function remains unchanged]
+        # Placeholder for other commands (e.g., fetching shlokas)
+        # Add your existing logic here for handling "fa", "0", etc.
+        await update.message.reply_text("Command not fully implemented yet. Use 'w <term>' for word search.")
 
     except Exception as e:
         logger.error(f"Error processing message: {str(e)}", exc_info=True)
         await update.message.reply_text("❌ An error occurred.")
 
-# Command handlers and main function (unchanged)
+# Command handlers
 async def start(update: Update, context: CallbackContext):
     logger.info("Bot started with /start command")
     await update.message.reply_text(
         "Jai Gurudatta!\n"
         "Welcome to Srimad Bhagavadgita Bot.\n"
         "w <term> → Search word occurrences (e.g., 'w dhR^itaraashhTra')\n"
-        # ... [Rest of the start message]
+        "f → Full shloka\n"
+        "fa → Full shloka with audio\n"
+        "More commands to be added..."
     )
 
 async def reset(update: Update, context: CallbackContext):
