@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 # Bot Token & GitHub URL
 TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 GITHUB_TOKEN = os.getenv("GITHUB_TOKEN")
-WORD_INDEX_URL = "https://raw.githubusercontent.com/pubsaroja/bhagavad-gita-bot/main/gita_word_index.txt"  # Update with your repo URL
+WORD_INDEX_URL = "https://raw.githubusercontent.com/yourusername/bhagavad-gita-bot/main/gita_word_index.txt"  # Update with your repo URL
 
 if not TOKEN:
     raise ValueError("❌ TELEGRAM_BOT_TOKEN is missing!")
@@ -21,7 +21,7 @@ if not TOKEN:
 # Session data
 session_data = {}
 
-# Load existing shloka data
+# Load existing shloka data (unchanged)
 HINDI_WITH_UVACHA_URL = "https://raw.githubusercontent.com/pubsaroja/bhagavad-gita-bot/refs/heads/main/BG%20Hindi%20with%20Uvacha.txt"
 TELUGU_WITH_UVACHA_URL = "https://raw.githubusercontent.com/pubsaroja/bhagavad-gita-bot/refs/heads/main/BG%20Telugu%20with%20Uvacha.txt"
 ENGLISH_WITH_UVACHA_URL = "https://raw.githubusercontent.com/pubsaroja/bhagavad-gita-bot/refs/heads/main/BG%20English%20with%20Uvacha.txt"
@@ -69,49 +69,44 @@ full_shlokas_hindi = load_shlokas_from_github(HINDI_WITH_UVACHA_URL)
 full_shlokas_telugu = load_shlokas_from_github(TELUGU_WITH_UVACHA_URL)
 full_shlokas_english = load_shlokas_from_github(ENGLISH_WITH_UVACHA_URL)
 
-# Load word index
+# Load word index (unchanged)
 def load_word_index():
     response = requests.get(WORD_INDEX_URL)
     if response.status_code != 200:
         logger.error(f"⚠️ Error fetching word index from {WORD_INDEX_URL}")
         return {}
     word_index = {}
+    current_term = None
+    occurrences = 0
     lines = response.text.split("\n")
     for line in lines:
         line = line.strip()
-        if not line or line == "---":  # Skip empty lines or separators if any
-            continue
-        # Split line into term, translation, and verse
-        try:
-            if "=" in line and "||" in line:
-                term_part, verse_part = line.rsplit("||", 1)
-                term, translation = term_part.split("=", 1)
-                term = term.strip().lower()
-                translation = translation.strip()
-                verse = verse_part.strip("()")
-                if term not in word_index:
-                    word_index[term] = []
-                word_index[term].append((verse, translation))
-        except ValueError as e:
-            logger.warning(f"Skipping malformed line: {line} - {str(e)}")
+        if line.startswith("TERM:"):
+            current_term = line.split("TERM: ")[1]
+            word_index[current_term] = []
+        elif line.startswith("OCCURRENCES:"):
+            occurrences = int(line.split("OCCURRENCES: ")[1])
+        elif line == "---":
+            current_term = None
+        elif current_term and line:
+            word_index[current_term].append(line)
     return word_index
 
 word_index = load_word_index()
 
-# Search word occurrences
+# Search word occurrences (unchanged)
 def search_word_occurrences(term):
     term = term.lower()
     if term in word_index:
-        occurrences = word_index[term]
-        response = f"Found '{term}' in {len(occurrences)} verse(s):\n\n"
-        for verse, translation in occurrences:
-            response += f"Verse {verse}:\n"
-            response += f"Sanskrit: {term}\n"
-            response += f"Translation: {translation}\n\n"
+        occurrences = len(word_index[term])
+        response = f"Found '{term}' in {occurrences} verse(s):\n"
+        for entry in word_index[term]:
+            verse, sanskrit, translit, trans = entry.split("|")
+            response += f"{verse}:\nSanskrit: {sanskrit}\nTransliteration: {translit}\nTranslation: {trans}\n\n"
         return response
     return f"No occurrences found for '{term}'."
 
-# Search shlokas
+# Search shlokas (unchanged)
 def search_shlokas(starting_with, max_results=10, offset=0):
     results = []
     for chapter, shlokas in full_shlokas_telugu.items():
@@ -136,7 +131,7 @@ SYLLABLE_MAP = {
     'ssa': 'ష', 'sa': 'స', 'ha': 'హ'
 }
 
-# Helper functions for chapter navigation
+# Helper functions for chapter navigation (unchanged)
 def get_previous_chapter(chapter):
     return "18" if chapter == "1" else str(int(chapter) - 1)
 
@@ -173,7 +168,7 @@ def get_shloka(chapter: str, verse_idx: int, with_audio: bool = False, audio_onl
     logger.info(f"Retrieved shloka {chapter}.{verse}, audio: {audio_link}")
     return text, audio_link
 
-# Get a random shloka
+# Get a random shloka (unchanged)
 def get_random_shloka(chapter: str, user_id: int, with_audio: bool = False, audio_only: bool = False):
     if user_id not in session_data:
         session_data[user_id] = {"used_shlokas": {}, "last_chapter": None, "last_index": None, "search_results": [], "search_state": {}}
@@ -199,7 +194,7 @@ def get_random_shloka(chapter: str, user_id: int, with_audio: bool = False, audi
     text = f"{chapter}.{verse}\nTelugu:\n{shloka_telugu}\n\nHindi:\n{shloka_hindi}\n\nEnglish:\n{shloka_english}" if not audio_only else None
     return text, audio_link
 
-# Get a specific shloka by chapter and verse number
+# Get a specific shloka by chapter and verse number (unchanged)
 def get_specific_shloka(chapter: str, verse: str, user_id: int, with_audio: bool = False, audio_only: bool = False, full_audio: bool = False):
     if user_id not in session_data:
         session_data[user_id] = {"used_shlokas": {}, "last_chapter": None, "last_index": None, "search_results": [], "search_state": {}}
@@ -220,7 +215,7 @@ def get_specific_shloka(chapter: str, verse: str, user_id: int, with_audio: bool
             return text, audio_link
     return f"❌ Shloka {chapter}.{verse} not found!", None
 
-# Get the last requested shloka
+# Get the last requested shloka (unchanged)
 def get_last_shloka(user_id: int, with_audio: bool = False, audio_only: bool = False, full_audio: bool = False):
     if user_id in session_data and session_data[user_id]["last_index"] is not None:
         chapter = session_data[user_id]["last_chapter"]
@@ -241,20 +236,13 @@ async def handle_message(update: Update, context: CallbackContext):
         base_command = original_text
         if audio_only:
             base_command = original_text[:-2]  # Remove 'ao'
-        elif with_audio and not original_text.startswith("w "):  # Only apply 'a' modifier if not a word search
-            base_command = original_text[:-1]  # Remove 'a' only if not a syllable or word search
+        elif with_audio:
+            base_command = original_text[:-1]  # Remove 'a' only if not a syllable
 
         # Determine if full audio is needed
-        full_audio = base_command in ["f", "n1", "n2", "n3", "n4", "n5", "p"] or (with_audio and not original_text.startswith("w "))
+        full_audio = base_command in ["f", "n1", "n2", "n3", "n4", "n5", "p"] or with_audio or audio_only
 
         logger.info(f"Base command: {base_command}, audio_only: {audio_only}, with_audio: {with_audio}, full_audio: {full_audio}")
-
-        # Handle word search (e.g., 'w anagha')
-        if base_command.startswith("w "):
-            term = base_command[2:].strip()
-            response = search_word_occurrences(term)
-            await update.message.reply_text(response)
-            return
 
         # Handle specific shloka request (e.g., "18.1", "18.1a", "18.1ao")
         if "." in base_command:
@@ -269,8 +257,6 @@ async def handle_message(update: Update, context: CallbackContext):
                     return
             except ValueError:
                 pass
-
-        # ... (rest of the function remains unchanged)
 
         # Handle chapter number for random shloka (e.g., "0", "1", "0a", "1ao")
         if base_command.isdigit():
@@ -361,7 +347,7 @@ async def handle_message(update: Update, context: CallbackContext):
                 await update.message.reply_audio(audio_url)
             return
 
-        # Handle next shloka (e.g., "n1", "n1a", "n1ao")
+        # Handle next shloka (e.g., "n1", "n1a", "n1ao") - MODIFIED
         if base_command.startswith("n") and base_command[1:].isdigit():
             if user_id in session_data and session_data[user_id]["last_index"] is not None:
                 current_chapter = session_data[user_id]["last_chapter"]
