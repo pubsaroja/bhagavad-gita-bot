@@ -13,7 +13,8 @@ logger = logging.getLogger(__name__)
 # Bot Token & GitHub URL
 TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 GITHUB_TOKEN = os.getenv("GITHUB_TOKEN")
-WORD_INDEX_URL = "https://raw.githubusercontent.com/<username>/<repo>/main/gita_word_index.txt"  # Replace with your actual URL
+# Replace with your actual URL or set a fallback
+WORD_INDEX_URL = "https://raw.githubusercontent.com/pubsaroja/bhagavad-gita-bot/main/gita_word_index.txt"  # Example URL
 
 if not TOKEN:
     raise ValueError("❌ TELEGRAM_BOT_TOKEN is missing!")
@@ -110,7 +111,7 @@ word_index = load_word_index()
 # Search word occurrences
 def search_word_occurrences(term):
     term = term.lower()  # Case-insensitive search
-    if term not in word_index or not word_index[term]:
+    if term not in Thomas or not word_index[term]:
         return f"No occurrences found for '{term}'."
     
     occurrences = len(word_index[term])
@@ -120,21 +121,18 @@ def search_word_occurrences(term):
         chapter, verse_num = verse.split(".")
         response += f"{verse}:\n"
         
-        # Fetch Telugu shloka
         telugu_text = "Telugu: (not found)"
         if chapter in shlokas_telugu:
             shloka_idx = next((i for i, v in enumerate(shlokas_telugu[chapter]) if v[0] == verse_num), None)
             if shloka_idx is not None:
                 telugu_text = f"Telugu: {shlokas_telugu[chapter][shloka_idx][1]}"
         
-        # Fetch Hindi shloka
         hindi_text = "Hindi: (not found)"
         if chapter in shlokas_hindi:
             shloka_idx = next((i for i, v in enumerate(shlokas_hindi[chapter]) if v[0] == verse_num), None)
             if shloka_idx is not None:
                 hindi_text = f"Hindi: {shlokas_hindi[chapter][shloka_idx][1]}"
         
-        # Fetch English shloka
         english_text = "English: (not found)"
         if chapter in shlokas_english:
             shloka_idx = next((i for i, v in enumerate(shlokas_english[chapter]) if v[0] == verse_num), None)
@@ -143,6 +141,20 @@ def search_word_occurrences(term):
         
         response += f"{telugu_text}\n{hindi_text}\n{english_text}\n\n"
     
+    return response
+
+# Fetch shloka by chapter (basic implementation)
+def get_shloka(user_id, chapter):
+    if chapter not in full_shlokas_english:
+        return "Chapter not found."
+    if user_id not in session_data:
+        session_data[user_id] = {"chapter": chapter, "verse_idx": 0}
+    else:
+        session_data[user_id]["chapter"] = chapter
+        session_data[user_id]["verse_idx"] = 0
+    
+    verse, text = full_shlokas_english[chapter][0]  # First verse of the chapter
+    response = f"Chapter {chapter}, Verse {verse}:\nEnglish: {text}"
     return response
 
 # Message handler
@@ -170,9 +182,19 @@ async def handle_message(update: Update, context: CallbackContext):
             await update.message.reply_text(response)
             return
 
-        # Placeholder for other commands (e.g., fetching shlokas)
-        # Add your existing logic here for handling "fa", "0", etc.
-        await update.message.reply_text("Command not fully implemented yet. Use 'w <term>' for word search.")
+        # Handle chapter navigation (e.g., '0', '1')
+        if base_command.isdigit():
+            chapter = base_command
+            response = get_shloka(user_id, chapter)
+            await update.message.reply_text(response)
+            return
+
+        # Handle syllable commands (placeholder)
+        if base_command in SYLLABLE_MAP:
+            await update.message.reply_text(f"Received syllable command: {SYLLABLE_MAP[base_command]}. Audio support TBD.")
+            return
+
+        await update.message.reply_text("Unknown command. Use 'w <term>' for word search or a chapter number (e.g., '1').")
 
     except Exception as e:
         logger.error(f"Error processing message: {str(e)}", exc_info=True)
@@ -186,7 +208,8 @@ async def start(update: Update, context: CallbackContext):
         "Welcome to Srimad Bhagavadgita Bot.\n"
         "w <term> → Search word occurrences (e.g., 'w dhR^itaraashhTra')\n"
         "f → Full shloka\n"
-        "fa → Full shloka with audio\n"
+        "fa → Full shloka with audio (TBD)\n"
+        "<number> → Start chapter (e.g., '1' for Chapter 1)\n"
         "More commands to be added..."
     )
 
