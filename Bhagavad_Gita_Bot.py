@@ -3,7 +3,6 @@ import random
 import requests
 import logging
 import json
-import base64
 from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, CallbackContext
 
@@ -11,41 +10,31 @@ from telegram.ext import Application, CommandHandler, MessageHandler, filters, C
 logging.basicConfig(format="%(asctime)s - %(levelname)s - %(message)s", level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Bot Token & Webhook URL from environment variables
+# Bot Token & GitHub URL
 TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
-WEBHOOK_URL = os.getenv("WEBHOOK_URL")
 GITHUB_TOKEN = os.getenv("GITHUB_TOKEN")
+WORD_INDEX_URL = "https://raw.githubusercontent.com/yourusername/bhagavad-gita-bot/main/gita_word_index.txt"  # Update with your repo URL
 
 if not TOKEN:
-    raise ValueError("❌ TELEGRAM_BOT_TOKEN is missing! Set it in the environment variables.")
-if not GITHUB_TOKEN:
-    logger.warning("❌ GITHUB_TOKEN is missing! Meanings functionality will be unavailable.")
+    raise ValueError("❌ TELEGRAM_BOT_TOKEN is missing!")
 
-# GitHub repository details
-REPO_OWNER = "pubsaroja"
-REPO_NAME = "bhagavad-gita-bot"
-MEANINGS_FILE = "meanings.txt"
+# Session data
+session_data = {}
 
-# File URLs for shloka data
+# Load existing shloka data (unchanged)
 HINDI_WITH_UVACHA_URL = "https://raw.githubusercontent.com/pubsaroja/bhagavad-gita-bot/refs/heads/main/BG%20Hindi%20with%20Uvacha.txt"
 TELUGU_WITH_UVACHA_URL = "https://raw.githubusercontent.com/pubsaroja/bhagavad-gita-bot/refs/heads/main/BG%20Telugu%20with%20Uvacha.txt"
 ENGLISH_WITH_UVACHA_URL = "https://raw.githubusercontent.com/pubsaroja/bhagavad-gita-bot/refs/heads/main/BG%20English%20with%20Uvacha.txt"
 HINDI_WITHOUT_UVACHA_URL = "https://raw.githubusercontent.com/pubsaroja/bhagavad-gita-bot/refs/heads/main/BG%20Hindi%20without%20Uvacha.txt"
 TELUGU_WITHOUT_UVACHA_URL = "https://raw.githubusercontent.com/pubsaroja/bhagavad-gita-bot/refs/heads/main/BG%20Telugu%20Without%20Uvacha.txt"
 ENGLISH_WITHOUT_UVACHA_URL = "https://raw.githubusercontent.com/pubsaroja/bhagavad-gita-bot/refs/heads/main/BG%20English%20without%20Uvacha.txt"
-
-# Audio URLs
 AUDIO_QUARTER_URL = "https://raw.githubusercontent.com/pubsaroja/bhagavad-gita-bot/main/AudioQuarter/"
 AUDIO_FULL_URL = "https://raw.githubusercontent.com/pubsaroja/bhagavad-gita-bot/main/AudioFull/"
 
-# Session data to track user interactions
-session_data = {}
-
-# Load shlokas from GitHub
 def load_shlokas_from_github(url):
     response = requests.get(url)
     if response.status_code != 200:
-        logger.error(f"⚠️ Error fetching data from {url} (Status Code: {response.status_code})")
+        logger.error(f"⚠️ Error fetching data from {url}")
         return {}
     shlokas = {}
     current_number = None
@@ -73,7 +62,6 @@ def load_shlokas_from_github(url):
         shlokas[chapter].append((verse, "\n".join(current_text)))
     return shlokas
 
-# Load all shlokas into memory
 shlokas_hindi = load_shlokas_from_github(HINDI_WITHOUT_UVACHA_URL)
 shlokas_telugu = load_shlokas_from_github(TELUGU_WITHOUT_UVACHA_URL)
 shlokas_english = load_shlokas_from_github(ENGLISH_WITHOUT_UVACHA_URL)
@@ -81,51 +69,44 @@ full_shlokas_hindi = load_shlokas_from_github(HINDI_WITH_UVACHA_URL)
 full_shlokas_telugu = load_shlokas_from_github(TELUGU_WITH_UVACHA_URL)
 full_shlokas_english = load_shlokas_from_github(ENGLISH_WITH_UVACHA_URL)
 
-# Fetch meanings file from GitHub using download_url
-def fetch_meanings_file():
-    if not GITHUB_TOKEN:
-        logger.error("No GITHUB_TOKEN provided.")
-        return None
-    url = f"https://api.github.com/repos/{REPO_OWNER}/{REPO_NAME}/contents/{MEANINGS_FILE}"
-    headers = {"Authorization": f"token {GITHUB_TOKEN}"}
-    try:
-        response = requests.get(url, headers=headers, timeout=10)
-        response.raise_for_status()
-        json_response = response.json()
-        logger.info(f"GitHub API response: {json.dumps(json_response, indent=2)}")
-        if "download_url" not in json_response:
-            logger.error(f"Unexpected GitHub API response: 'download_url' field missing.")
-            return None
-        download_url = json_response["download_url"]
+# Load word index (unchanged)
+def load_word_index():
+    response = requests.get(WORD_INDEX_URL)
+    if response.status_code != 200:
+        logger.error(f"⚠️ Error fetching word index from {WORD_INDEX_URL}")
+        return {}
+    word_index = {}
+    current_term = None
+    occurrences = 0
+    lines = response.text.split("\n")
+    for line in lines:
+        line = line.strip()
+        if line.startswith("TERM:"):
+            current_term = line.split("TERM: ")[1]
+            word_index[current_term] = []
+        elif line.startswith("OCCURRENCES:"):
+            occurrences = int(line.split("OCCURRENCES: ")[1])
+        elif line == "---":
+            current_term = None
+        elif current_term and line:
+            word_index[current_term].append(line)
+    return word_index
 
-        raw_response = requests.get(download_url, headers=headers, timeout=10)
-        raw_response.raise_for_status()
-        content = raw_response.text
-        if not content.strip():
-            logger.error("Fetched meanings.txt is empty.")
-            return None
-        logger.info(f"Raw meanings.txt content: {content[:100]}...")
-        return json.loads(content)
-    except requests.RequestException as e:
-        logger.error(f"Failed to fetch {MEANINGS_FILE} from GitHub: {str(e)}")
-        return None
-    except json.JSONDecodeError as e:
-        logger.error(f"Failed to parse meanings.txt as JSON: {str(e)}")
-        return None
+word_index = load_word_index()
 
-# Get meaning of a shloka
-def get_meaning(shloka_id):
-    meanings = fetch_meanings_file()
-    if meanings is None:
-        return "❌ Could not fetch meanings. Check GitHub token or meanings.txt file."
-    if shloka_id in meanings:
-        data = meanings[shloka_id]
-        word_meanings = "\n".join([f"{word}: {meaning}" for word, meaning in data["ప్రతిపదార్థం"].items()]) if data["ప్రతిపదార్థం"] else "No word meanings available."
-        translation = data["అర్థము"]
-        return f"Word Meanings:\n{word_meanings}\n\nTranslation:\n{translation}"
-    return f"Meaning for Shloka {shloka_id} not found in meanings.txt."
+# Search word occurrences (unchanged)
+def search_word_occurrences(term):
+    term = term.lower()
+    if term in word_index:
+        occurrences = len(word_index[term])
+        response = f"Found '{term}' in {occurrences} verse(s):\n"
+        for entry in word_index[term]:
+            verse, sanskrit, translit, trans = entry.split("|")
+            response += f"{verse}:\nSanskrit: {sanskrit}\nTransliteration: {translit}\nTranslation: {trans}\n\n"
+        return response
+    return f"No occurrences found for '{term}'."
 
-# Search for shlokas starting with a specific letter or syllable
+# Search shlokas (unchanged)
 def search_shlokas(starting_with, max_results=10, offset=0):
     results = []
     for chapter, shlokas in full_shlokas_telugu.items():
@@ -134,11 +115,10 @@ def search_shlokas(starting_with, max_results=10, offset=0):
                 first_quarter = text.split('\n')[0]
                 results.append((chapter, verse, first_quarter))
     total_results = len(results)
-    if max_results == -1:  # Return all results
+    if max_results == -1:
         return results[offset:], total_results
     return results[offset:offset + max_results], total_results
 
-# Map Latin letters to Telugu syllables
 SYLLABLE_MAP = {
     'a': 'అ', 'aa': 'ఆ', 'i': 'ఇ', 'ii': 'ఈ', 'u': 'ఉ', 'uu': 'ఊ',
     'e': 'ఎ', 'ee': 'ఏ', 'ai': 'ఐ', 'o': 'ఒ', 'oo': 'ఓ', 'au': 'ఔ',
@@ -151,7 +131,7 @@ SYLLABLE_MAP = {
     'ssa': 'ష', 'sa': 'స', 'ha': 'హ'
 }
 
-# Helper functions for chapter navigation
+# Helper functions for chapter navigation (unchanged)
 def get_previous_chapter(chapter):
     return "18" if chapter == "1" else str(int(chapter) - 1)
 
@@ -188,7 +168,7 @@ def get_shloka(chapter: str, verse_idx: int, with_audio: bool = False, audio_onl
     logger.info(f"Retrieved shloka {chapter}.{verse}, audio: {audio_link}")
     return text, audio_link
 
-# Get a random shloka from a chapter
+# Get a random shloka (unchanged)
 def get_random_shloka(chapter: str, user_id: int, with_audio: bool = False, audio_only: bool = False):
     if user_id not in session_data:
         session_data[user_id] = {"used_shlokas": {}, "last_chapter": None, "last_index": None, "search_results": [], "search_state": {}}
@@ -214,7 +194,7 @@ def get_random_shloka(chapter: str, user_id: int, with_audio: bool = False, audi
     text = f"{chapter}.{verse}\nTelugu:\n{shloka_telugu}\n\nHindi:\n{shloka_hindi}\n\nEnglish:\n{shloka_english}" if not audio_only else None
     return text, audio_link
 
-# Get a specific shloka by chapter and verse number
+# Get a specific shloka by chapter and verse number (unchanged)
 def get_specific_shloka(chapter: str, verse: str, user_id: int, with_audio: bool = False, audio_only: bool = False, full_audio: bool = False):
     if user_id not in session_data:
         session_data[user_id] = {"used_shlokas": {}, "last_chapter": None, "last_index": None, "search_results": [], "search_state": {}}
@@ -235,7 +215,7 @@ def get_specific_shloka(chapter: str, verse: str, user_id: int, with_audio: bool
             return text, audio_link
     return f"❌ Shloka {chapter}.{verse} not found!", None
 
-# Get the last requested shloka
+# Get the last requested shloka (unchanged)
 def get_last_shloka(user_id: int, with_audio: bool = False, audio_only: bool = False, full_audio: bool = False):
     if user_id in session_data and session_data[user_id]["last_index"] is not None:
         chapter = session_data[user_id]["last_chapter"]
@@ -293,8 +273,8 @@ async def handle_message(update: Update, context: CallbackContext):
             results, total_results = search_shlokas(starting_with, max_results=10)
             session_data[user_id]["search_state"] = {
                 "starting_with": starting_with,
-                "all_results": results + search_shlokas(starting_with, max_results=-1, offset=10)[0],  # Store all results
-                "offset": 10  # Start after the first 10
+                "all_results": results + search_shlokas(starting_with, max_results=-1, offset=10)[0],
+                "offset": 10
             }
             if results:
                 response = f"Found {total_results} shlokas starting with '{starting_with}' (showing first 10):\n"
@@ -302,8 +282,6 @@ async def handle_message(update: Update, context: CallbackContext):
                     response += f"{i}. {chapter}.{verse}: {first_quarter}\n"
                 if total_results > 10:
                     response += "Reply 'more' for the next 10 or 'all' for all remaining shlokas."
-                else:
-                    response += "These are all the shlokas found."
                 response += "\nOr reply with a number to see the full shloka."
                 session_data[user_id]["search_results"] = results
                 await update.message.reply_text(response)
@@ -322,7 +300,7 @@ async def handle_message(update: Update, context: CallbackContext):
                 session_data[user_id]["search_state"]["offset"] += 10
             else:  # 'all'
                 results = all_results[offset:]
-                session_data[user_id]["search_state"]["offset"] = len(all_results)  # Mark as exhausted
+                session_data[user_id]["search_state"]["offset"] = len(all_results)
             if results:
                 response = f"More shlokas starting with '{starting_with}':\n"
                 start_index = offset + 1 if base_command == "more" else offset + 1
@@ -353,24 +331,11 @@ async def handle_message(update: Update, context: CallbackContext):
                 await update.message.reply_text("Invalid selection. Please try again.")
             return
 
-        # Handle meanings command (e.g., 'mn', 'mn 1.1')
-        if base_command == "mn" or base_command.startswith("mn "):
-            parts = base_command.split()
-            if len(parts) == 1:
-                if user_id in session_data and session_data[user_id]["last_index"] is not None:
-                    chapter = session_data[user_id]["last_chapter"]
-                    verse, _ = full_shlokas_hindi[chapter][session_data[user_id]["last_index"]]
-                    shloka_id = f"{chapter}.{verse}"
-                    meaning = get_meaning(shloka_id)
-                    await update.message.reply_text(meaning)
-                else:
-                    await update.message.reply_text("❌ Please request a Shloka first!")
-            elif len(parts) == 2:
-                shloka_id = parts[1]
-                meaning = get_meaning(shloka_id)
-                await update.message.reply_text(meaning)
-            else:
-                await update.message.reply_text("❌ Invalid format. Use 'mn' or 'mn <shloka_id>' (e.g., 'mn 1.1')")
+        # Handle word search (e.g., 'w anagha')
+        if base_command.startswith("w "):
+            term = base_command[2:].strip()
+            response = search_word_occurrences(term)
+            await update.message.reply_text(response)
             return
 
         # Handle last shloka (e.g., "f", "fa", "fao")
@@ -382,27 +347,30 @@ async def handle_message(update: Update, context: CallbackContext):
                 await update.message.reply_audio(audio_url)
             return
 
-        # Handle next shloka (e.g., "n1", "n1a", "n1ao")
+        # Handle next shloka (e.g., "n1", "n1a", "n1ao") - MODIFIED
         if base_command.startswith("n") and base_command[1:].isdigit():
             if user_id in session_data and session_data[user_id]["last_index"] is not None:
-                chapter = session_data[user_id]["last_chapter"]
+                current_chapter = session_data[user_id]["last_chapter"]
                 current_idx = session_data[user_id]["last_index"]
                 count = int(base_command[1:])
                 responses = []
                 audio_urls = []
-                last_successful_idx = current_idx
+                last_chapter = current_chapter
+                last_idx = current_idx
                 for i in range(count):
-                    next_idx = current_idx + i + 1
-                    response, audio_url = get_shloka(chapter, next_idx, with_audio, audio_only, full_audio)
+                    chapter, idx = get_shloka_at_offset(current_chapter, current_idx, i + 1)
+                    response, audio_url = get_shloka(chapter, idx, with_audio, audio_only, full_audio)
                     if response or audio_url:
                         responses.append(response)
                         if audio_url:
                             audio_urls.append(audio_url)
-                        last_successful_idx = next_idx
+                        last_chapter = chapter
+                        last_idx = idx
                     else:
-                        break
+                        break  # Stop if no more shlokas are available
                 if audio_urls or responses:
-                    session_data[user_id]["last_index"] = last_successful_idx
+                    session_data[user_id]["last_chapter"] = last_chapter
+                    session_data[user_id]["last_index"] = last_idx
                     if not audio_only:
                         for response in responses:
                             if response:
@@ -463,6 +431,7 @@ async def handle_message(update: Update, context: CallbackContext):
         # Handle invalid input
         await update.message.reply_text(
             "❌ Invalid input. Please use:\n"
+            "w <term>: Search word occurrences (e.g., 'w anagha')\n"
             "a, ba, etc.: Search shlokas by starting letter\n"
             "more: Next 10 search results\n"
             "all: All remaining search results\n"
@@ -470,10 +439,8 @@ async def handle_message(update: Update, context: CallbackContext):
             "0-18: Random Shloka\n"
             "chapter.verse: Specific Shloka (e.g., 18.1)\n"
             "f: Last full Shloka\n"
-            "n1-n5: Next Shloka(s)\n"
+            "n1-n5: Next Shloka(s) (continues to next chapter if needed)\n"
             "p: Previous 2, current & next 2 Shlokas\n"
-            "mn: Meaning of last Shloka\n"
-            "mn <shloka_id>: Meaning of specific Shloka (e.g., 'mn 1.1')\n"
             "o: Audio of last Shloka\n"
             "Add 'a' for audio with text (e.g., '1a')\n"
             "Add 'ao' for audio only (e.g., '1ao')\n"
@@ -481,14 +448,15 @@ async def handle_message(update: Update, context: CallbackContext):
         )
     except Exception as e:
         logger.error(f"Error processing message: {str(e)}", exc_info=True)
-        await update.message.reply_text("❌ An error occurred. Please try again or contact support.")
+        await update.message.reply_text("❌ An error occurred.")
 
 # Command handlers
 async def start(update: Update, context: CallbackContext):
     logger.info("Bot started with /start command")
     await update.message.reply_text(
         "Jai Gurudatta!\n"
-        "Welcome to Srimad Bhagavadgita Random Practice chatbot.\n"
+        "Welcome to Srimad Bhagavadgita Bot.\n"
+        "w <term> → Search word occurrences (e.g., 'w anagha')\n"
         "a, ba, etc. → Search shlokas by starting letter\n"
         "more → Next 10 search results\n"
         "all → All remaining search results\n"
@@ -502,15 +470,13 @@ async def start(update: Update, context: CallbackContext):
         "f → Full last Shloka\n"
         "fa → Full last Shloka with full audio\n"
         "fao → Full last Shloka audio only\n"
-        "n1 → Next Shloka\n"
+        "n1 → Next Shloka (continues to next chapter if needed)\n"
         "n1a → Next with audio\n"
         "n1ao → Next audio only\n"
         "n2-n5 → Multiple next Shlokas\n"
         "p → Previous 2, current & next 2\n"
         "pa → Same with audio\n"
         "pao → Same audio only\n"
-        "mn → Meaning of last Shloka\n"
-        "mn <shloka_id> → Meaning of specific Shloka (e.g., 'mn 1.1')\n"
         "o → Audio of last Shloka\n"
         "Use /reset to start fresh"
     )
@@ -521,7 +487,7 @@ async def reset(update: Update, context: CallbackContext):
         del session_data[user_id]
     await update.message.reply_text("✅ Session reset! Start anew with any chapter.")
 
-# Main function to run the bot
+# Main function
 def main():
     logger.info("Starting the bot...")
     app = Application.builder().token(TOKEN).build()
@@ -530,7 +496,6 @@ def main():
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
     logger.info("Starting polling mode")
     app.run_polling()
-    logger.info("Bot is running!")
 
 if __name__ == "__main__":
     main()
