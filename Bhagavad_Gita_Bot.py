@@ -161,15 +161,19 @@ def get_next_chapter(chapter):
 def get_shloka_at_offset(current_chapter, current_idx, offset):
     chapter = current_chapter
     idx = current_idx + offset
+    # Handle negative offsets (going backward)
     while idx < 0:
         prev_chapter = get_previous_chapter(chapter)
         num_shlokas_prev = len(full_shlokas_hindi[prev_chapter])
         idx += num_shlokas_prev
         chapter = prev_chapter
+    # Handle positive offsets (going forward)
     while idx >= len(full_shlokas_hindi[chapter]):
         next_chapter = get_next_chapter(chapter)
         idx -= len(full_shlokas_hindi[chapter])
         chapter = next_chapter
+        if chapter == current_chapter:  # Looped back to start (e.g., after 18)
+            return None, None  # No more shlokas available
     return chapter, idx
 
 # Get a specific shloka by chapter and verse index
@@ -382,27 +386,32 @@ async def handle_message(update: Update, context: CallbackContext):
                 await update.message.reply_audio(audio_url)
             return
 
-        # Handle next shloka (e.g., "n1", "n1a", "n1ao")
+        # Handle next shloka (e.g., "n1", "n2", "n1a", "n1ao")
         if base_command.startswith("n") and base_command[1:].isdigit():
             if user_id in session_data and session_data[user_id]["last_index"] is not None:
-                chapter = session_data[user_id]["last_chapter"]
+                current_chapter = session_data[user_id]["last_chapter"]
                 current_idx = session_data[user_id]["last_index"]
                 count = int(base_command[1:])
                 responses = []
                 audio_urls = []
-                last_successful_idx = current_idx
+                last_chapter = current_chapter
+                last_idx = current_idx
                 for i in range(count):
-                    next_idx = current_idx + i + 1
-                    response, audio_url = get_shloka(chapter, next_idx, with_audio, audio_only, full_audio)
+                    next_chapter, next_idx = get_shloka_at_offset(current_chapter, current_idx, i + 1)
+                    if next_chapter is None:  # No more shlokas available
+                        break
+                    response, audio_url = get_shloka(next_chapter, next_idx, with_audio, audio_only, full_audio)
                     if response or audio_url:
                         responses.append(response)
                         if audio_url:
                             audio_urls.append(audio_url)
-                        last_successful_idx = next_idx
+                        last_chapter = next_chapter
+                        last_idx = next_idx
                     else:
                         break
                 if audio_urls or responses:
-                    session_data[user_id]["last_index"] = last_successful_idx
+                    session_data[user_id]["last_chapter"] = last_chapter
+                    session_data[user_id]["last_index"] = last_idx
                     if not audio_only:
                         for response in responses:
                             if response:
@@ -426,6 +435,8 @@ async def handle_message(update: Update, context: CallbackContext):
                 logger.info(f"Processing 'p' for chapter {current_chapter}, current index {current_idx}")
                 for offset in offsets:
                     chapter, idx = get_shloka_at_offset(current_chapter, current_idx, offset)
+                    if chapter is None:  # Skip if no shloka available
+                        continue
                     response, audio_url = get_shloka(chapter, idx, with_audio, audio_only, full_audio)
                     if response or audio_url:
                         responses.append(response)
