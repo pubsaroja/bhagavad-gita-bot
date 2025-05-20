@@ -3,13 +3,16 @@ import random
 import requests
 import logging
 import json
-import base64
+from flask import Flask, request
 from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, CallbackContext
 
 # Configure logging
 logging.basicConfig(format="%(asctime)s - %(levelname)s - %(message)s", level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+# Flask app
+app = Flask(__name__)
 
 # Bot Token & Webhook URL from environment variables
 TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
@@ -97,7 +100,6 @@ def fetch_meanings_file():
             logger.error(f"Unexpected GitHub API response: 'download_url' field missing.")
             return None
         download_url = json_response["download_url"]
-
         raw_response = requests.get(download_url, headers=headers, timeout=10)
         raw_response.raise_for_status()
         content = raw_response.text
@@ -161,19 +163,17 @@ def get_next_chapter(chapter):
 def get_shloka_at_offset(current_chapter, current_idx, offset):
     chapter = current_chapter
     idx = current_idx + offset
-    # Handle negative offsets (going backward)
     while idx < 0:
         prev_chapter = get_previous_chapter(chapter)
         num_shlokas_prev = len(full_shlokas_hindi[prev_chapter])
         idx += num_shlokas_prev
         chapter = prev_chapter
-    # Handle positive offsets (going forward)
     while idx >= len(full_shlokas_hindi[chapter]):
         next_chapter = get_next_chapter(chapter)
         idx -= len(full_shlokas_hindi[chapter])
         chapter = next_chapter
-        if chapter == current_chapter:  # Looped back to start (e.g., after 18)
-            return None, None  # No more shlokas available
+        if chapter == current_chapter:
+            return None, None
     return chapter, idx
 
 # Get a specific shloka by chapter and verse index
@@ -254,21 +254,18 @@ async def handle_message(update: Update, context: CallbackContext):
         user_id = update.message.from_user.id
         logger.info(f"Received input: {original_text} from user {user_id}")
 
-        # Check for audio modifiers and preserve the base command
         audio_only = original_text.endswith("ao")
         with_audio = original_text.endswith("a") and not audio_only and original_text not in SYLLABLE_MAP
         base_command = original_text
         if audio_only:
-            base_command = original_text[:-2]  # Remove 'ao'
+            base_command = original_text[:-2]
         elif with_audio:
-            base_command = original_text[:-1]  # Remove 'a' only if not a syllable
+            base_command = original_text[:-1]
 
-        # Determine if full audio is needed
         full_audio = base_command in ["f", "n1", "n2", "n3", "n4", "n5", "p"] or with_audio or audio_only
 
         logger.info(f"Base command: {base_command}, audio_only: {audio_only}, with_audio: {with_audio}, full_audio: {full_audio}")
 
-        # Handle specific shloka request (e.g., "18.1", "18.1a", "18.1ao")
         if "." in base_command:
             try:
                 chapter, verse = base_command.split(".", 1)
@@ -282,7 +279,6 @@ async def handle_message(update: Update, context: CallbackContext):
             except ValueError:
                 pass
 
-        # Handle chapter number for random shloka (e.g., "0", "1", "0a", "1ao")
         if base_command.isdigit():
             response, audio_url = get_random_shloka(base_command, user_id, with_audio, audio_only)
             if not audio_only and response:
@@ -291,14 +287,13 @@ async def handle_message(update: Update, context: CallbackContext):
                 await update.message.reply_audio(audio_url)
             return
 
-        # Handle search requests (e.g., 'a', 'ba')
         if base_command in SYLLABLE_MAP:
             starting_with = SYLLABLE_MAP[base_command]
             results, total_results = search_shlokas(starting_with, max_results=10)
             session_data[user_id]["search_state"] = {
                 "starting_with": starting_with,
-                "all_results": results + search_shlokas(starting_with, max_results=-1, offset=10)[0],  # Store all results
-                "offset": 10  # Start after the first 10
+                "all_results": results + search_shlokas(starting_with, max_results=-1, offset=10)[0],
+                "offset": 10
             }
             if results:
                 response = f"Found {total_results} shlokas starting with '{starting_with}' (showing first 10):\n"
@@ -315,7 +310,6 @@ async def handle_message(update: Update, context: CallbackContext):
                 await update.message.reply_text(f"No shlokas found starting with '{starting_with}'.")
             return
 
-        # Handle 'more' or 'all' for additional search results
         if base_command in ["more", "all"] and "search_state" in session_data.get(user_id, {}):
             search_state = session_data[user_id]["search_state"]
             starting_with = search_state["starting_with"]
@@ -324,9 +318,9 @@ async def handle_message(update: Update, context: CallbackContext):
             if base_command == "more":
                 results = all_results[offset:offset + 10]
                 session_data[user_id]["search_state"]["offset"] += 10
-            else:  # 'all'
+            else:
                 results = all_results[offset:]
-                session_data[user_id]["search_state"]["offset"] = len(all_results)  # Mark as exhausted
+                session_data[user_id]["search_state"]["offset"] = len(all_results)
             if results:
                 response = f"More shlokas starting with '{starting_with}':\n"
                 start_index = offset + 1 if base_command == "more" else offset + 1
@@ -341,7 +335,6 @@ async def handle_message(update: Update, context: CallbackContext):
                 await update.message.reply_text(f"No more shlokas found starting with '{starting_with}'.")
             return
 
-        # Handle selection from search results (e.g., '1', '2')
         if base_command.isdigit() and "search_results" in session_data.get(user_id, {}):
             selection = int(base_command) - 1
             results = session_data[user_id]["search_results"]
@@ -352,12 +345,11 @@ async def handle_message(update: Update, context: CallbackContext):
                     await update.message.reply_text(response)
                 if audio_url:
                     await update.message.reply_audio(audio_url)
-                session_data[user_id]["search_results"] = []  # Clear results after selection
+                session_data[user_id]["search_results"] = []
             else:
                 await update.message.reply_text("Invalid selection. Please try again.")
             return
 
-        # Handle meanings command (e.g., 'mn', 'mn 1.1')
         if base_command == "mn" or base_command.startswith("mn "):
             parts = base_command.split()
             if len(parts) == 1:
@@ -377,7 +369,6 @@ async def handle_message(update: Update, context: CallbackContext):
                 await update.message.reply_text("❌ Invalid format. Use 'mn' or 'mn <shloka_id>' (e.g., 'mn 1.1')")
             return
 
-        # Handle last shloka (e.g., "f", "fa", "fao")
         if base_command == "f":
             response, audio_url = get_last_shloka(user_id, with_audio, audio_only, full_audio)
             if not audio_only and response:
@@ -386,7 +377,6 @@ async def handle_message(update: Update, context: CallbackContext):
                 await update.message.reply_audio(audio_url)
             return
 
-        # Handle next shloka (e.g., "n1", "n2", "n1a", "n1ao")
         if base_command.startswith("n") and base_command[1:].isdigit():
             if user_id in session_data and session_data[user_id]["last_index"] is not None:
                 current_chapter = session_data[user_id]["last_chapter"]
@@ -398,7 +388,7 @@ async def handle_message(update: Update, context: CallbackContext):
                 last_idx = current_idx
                 for i in range(count):
                     next_chapter, next_idx = get_shloka_at_offset(current_chapter, current_idx, i + 1)
-                    if next_chapter is None:  # No more shlokas available
+                    if next_chapter is None:
                         break
                     response, audio_url = get_shloka(next_chapter, next_idx, with_audio, audio_only, full_audio)
                     if response or audio_url:
@@ -424,7 +414,6 @@ async def handle_message(update: Update, context: CallbackContext):
                 await update.message.reply_text("❌ Please request a Shloka first!")
             return
 
-        # Handle previous and next shlokas (e.g., "p", "pa", "pao")
         if base_command == "p":
             if user_id in session_data and session_data[user_id]["last_index"] is not None:
                 current_chapter = session_data[user_id]["last_chapter"]
@@ -435,7 +424,7 @@ async def handle_message(update: Update, context: CallbackContext):
                 logger.info(f"Processing 'p' for chapter {current_chapter}, current index {current_idx}")
                 for offset in offsets:
                     chapter, idx = get_shloka_at_offset(current_chapter, current_idx, offset)
-                    if chapter is None:  # Skip if no shloka available
+                    if chapter is None:
                         continue
                     response, audio_url = get_shloka(chapter, idx, with_audio, audio_only, full_audio)
                     if response or audio_url:
@@ -450,7 +439,7 @@ async def handle_message(update: Update, context: CallbackContext):
                         for response in responses:
                             if response:
                                 await update.message.reply_text(response)
-                    for audio_url in audio_urls:
+                    for audio_urls in audio_urls:
                         await update.message.reply_audio(audio_url)
                 else:
                     await update.message.reply_text("❌ No shlokas available in this range!")
@@ -458,7 +447,6 @@ async def handle_message(update: Update, context: CallbackContext):
                 await update.message.reply_text("❌ Please request a Shloka first!")
             return
 
-        # Handle audio of last shloka (e.g., "o")
         if base_command == "o":
             if user_id in session_data and session_data[user_id]["last_index"] is not None:
                 chapter = session_data[user_id]["last_chapter"]
@@ -471,7 +459,6 @@ async def handle_message(update: Update, context: CallbackContext):
                 await update.message.reply_text("❌ No previous Shloka found. Please request one first!")
             return
 
-        # Handle invalid input
         await update.message.reply_text(
             "❌ Invalid input. Please use:\n"
             "a, ba, etc.: Search shlokas by starting letter\n"
@@ -532,16 +519,43 @@ async def reset(update: Update, context: CallbackContext):
         del session_data[user_id]
     await update.message.reply_text("✅ Session reset! Start anew with any chapter.")
 
-# Main function to run the bot
+# Flask webhook endpoint
+@app.route('/webhook', methods=['POST'])
+async def webhook():
+    try:
+        update = Update.de_json(request.get_json(), bot=application.bot)
+        if update:
+            await application.process_update(update)
+        return 'OK', 200
+    except Exception as e:
+        logger.error(f"Webhook error: {str(e)}", exc_info=True)
+        return 'Error', 500
+
+# Initialize Telegram application
+application = Application.builder().token(TOKEN).build()
+
+# Register handlers
+application.add_handler(CommandHandler("start", start))
+application.add_handler(CommandHandler("reset", reset))
+application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+
+# Main function to set up webhook
 def main():
-    logger.info("Starting the bot...")
-    app = Application.builder().token(TOKEN).build()
-    app.add_handler(CommandHandler("start", start))
-    app.add_handler(CommandHandler("reset", reset))
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
-    logger.info("Starting polling mode")
-    app.run_polling()
-    logger.info("Bot is running!")
+    logger.info("Starting the bot in webhook mode...")
+    port = int(os.getenv("PORT", 8080))
+    webhook_path = '/webhook'
+    webhook_url = f"{WEBHOOK_URL}{webhook_path}"
+    
+    # Set webhook
+    application.run_webhook(
+        listen="0.0.0.0",
+        port=port,
+        url_path=webhook_path,
+        webhook_url=webhook_url
+    )
+    
+    # Start Flask app
+    app.run(host="0.0.0.0", port=port)
 
 if __name__ == "__main__":
     main()
