@@ -1,4 +1,5 @@
 python-telegram-bot[webhooks]
 requests
-flask
+Flask==2.3.3
 gunicorn
+Flask-Cors==3.0.10
