@@ -1,4 +1,3 @@
-# app.py
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 import json, random, re, os
@@ -35,41 +34,48 @@ def find_entry(ch, vs):
 @app.route("/webhook", methods=["POST"])
 def webhook():
     req = request.get_json(force=True)
+    session = req.get("session", "")
     intent = req["queryResult"]["intent"]["displayName"]
+    parameters = req["queryResult"].get("parameters", {})
     ctx_map = {c["name"].split("/")[-1]: c for c in req["queryResult"].get("outputContexts", [])}
     last = ctx_map.get("lastshloka", {}).get("parameters", {})
 
+    # Initialize chapter and verse from context or defaults
+    current_chapter = int(last.get("chapter", 1))
+    current_verse = int(last.get("verse", 1))
+
     if intent == "ZeroIntent":
         entry = random.choice(quarter_13)
-        return reply(entry, entry["quarter"])
+        return reply(entry, entry["quarter"], session)
 
     elif intent == "ChapterIntent":
-        chap = int(req["queryResult"]["parameters"].get("chapter", 1))
-        opts = [e for e in quarter_13 if e["chapter"] == chap] or quarter_13
-        entry = random.choice(opts)
-        return reply(entry, entry["quarter"])
+        chap = int(parameters.get("chapter", current_chapter))
+        opts = [e for e in quarter_13 if e["chapter"] == chap]
+        entry = random.choice(opts) if opts else random.choice(quarter_13)
+        return reply(entry, entry["quarter"], session)
 
     elif intent == "FullIntent":
-        chap = int(last.get("chapter", 1))
-        verse = int(last.get("verse", 1))
-        entry = find_entry(chap, verse) or random.choice(full_index)
-        return reply(entry, entry["full"])
+        entry = find_entry(current_chapter, current_verse)
+        if not entry:
+            entry = random.choice(full_index)
+        return reply(entry, entry["full"], session)
 
     elif intent == "NextIntent":
-        chap = int(last.get("chapter", 1))
-        verse = int(last.get("verse", 1)) + 1
-        nxt = find_entry(chap, verse)
-        if not nxt:
-            chap = chap + 1 if chap < 18 else 1
+        verse = current_verse + 1
+        entry = find_entry(current_chapter, verse)
+        if not entry:
+            # Move to next chapter or loop back to Chapter 1
+            next_chapter = current_chapter + 1 if current_chapter < 18 else 1
             verse = 1
-            nxt = find_entry(chap, verse)
-        entry = nxt or random.choice(full_index)
-        return reply(entry, entry["full"])
+            entry = find_entry(next_chapter, verse)
+        if not entry:
+            entry = random.choice(full_index)
+        return reply(entry, entry["full"], session)
 
     return jsonify({"fulfillmentText": "Sorry, I didn’t understand."})
 
 # Response helper
-def reply(entry, audio_url):
+def reply(entry, audio_url, session):
     text = f"Chapter {entry['chapter']}, Verse {entry['verse']}"
     return jsonify({
         "fulfillmentText": text,
@@ -91,11 +97,11 @@ def reply(entry, audio_url):
         },
         "outputContexts": [
             {
-                "name": f"{request.json['session']}/contexts/lastshloka",
+                "name": f"{session}/contexts/lastshloka",
                 "lifespanCount": 5,
                 "parameters": {
-                    "chapter": entry["chapter"],
-                    "verse": entry["verse"]
+                    "chapter": float(entry["chapter"]),  # Use float to match Dialogflow
+                    "verse": float(entry["verse"])
                 }
             }
         ]
