@@ -1,49 +1,51 @@
-# ─── app.py ──────────────────────────────────────────────────────────────
+# ─── app.py ─────────────────────────────────────────────────────────────
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 import json, random, re, os, sys
 
 app = Flask(__name__)
-CORS(app)
+CORS(app)                                       # allow calls from any origin
 
-# ----------------------------------------------------------------------
-# Load the audio index
-# ----------------------------------------------------------------------
+# ── Load index and tag quarter number (1‑4) ─────────────────────────────
 try:
     with open("gita_audio_index.json", encoding="utf-8") as f:
-        full_index = json.load(f)
+        index = json.load(f)
 except FileNotFoundError:
-    print("❌  gita_audio_index.json not found – container will exit.", file=sys.stderr)
-    sys.exit(1)
+    sys.exit("❌ gita_audio_index.json not found; aborting.")
 
-if not full_index:
-    print("❌  gita_audio_index.json is empty – container will exit.", file=sys.stderr)
-    sys.exit(1)
-
-# Tag each entry with quarter number 1‑4  (…/27.3.mp3 → 3)
-def quarter_num(entry):
-    m = re.search(r"/([1-4])\\.mp3$", entry["quarter"])
+def qnum(path: str) -> int:
+    """
+    Extract quarter number (1‑4) regardless of OS path style.
+    Example “…/Chapter 5/27.3.mp3” → 3
+    """
+    m = re.search(r"[./]([1-4])\.mp3$", path)
     return int(m.group(1)) if m else 1
 
-for e in full_index:
-    e["qnum"] = quarter_num(e)
+for e in index:
+    e["qnum"] = qnum(e["quarter"])
 
-quarter_13 = [e for e in full_index if e["qnum"] in (1, 3)]
-full_lookup = { (e["chapter"], e["verse"]): e for e in full_index }
+quarter_13 = [e for e in index if e["qnum"] in (1, 3)]
+full_lookup = {(e["chapter"], e["verse"]): e for e in index}
 
-def find_entry(ch, vs):
-    return full_lookup.get((ch, vs))
+def next_full(ch: int, vs: int):
+    """Return the next verse (full) looping ch=18→1"""
+    while True:
+        vs += 1
+        if (ch, vs) in full_lookup:
+            return full_lookup[(ch, vs)]
+        # reached end of chapter – wrap
+        ch, vs = (ch + 1, 0) if ch < 18 else (1, 0)
 
-# ----------------------------------------------------------------------
-# Webhook
-# ----------------------------------------------------------------------
+# ── Webhook route ───────────────────────────────────────────────────────
 @app.route("/webhook", methods=["POST"])
 def webhook():
     req = request.get_json(force=True)
     intent = req["queryResult"]["intent"]["displayName"]
-    ctx = {c["name"].split("/")[-1]: c for c in
-           req["queryResult"].get("outputContexts", [])}.get("lastshloka", {})
-    last = ctx.get("parameters", {})
+
+    # Pull last context (chapter+verse)
+    ctxs = {c["name"].split("/")[-1]: c for c in
+            req["queryResult"].get("outputContexts", [])}
+    last = ctxs.get("lastshloka", {}).get("parameters", {})
 
     if intent == "ZeroIntent":
         entry = random.choice(quarter_13)
@@ -54,28 +56,24 @@ def webhook():
         entry = random.choice(cand)
 
     elif intent == "FullIntent":
-        chap = int(last.get("chapter", 1)); verse = int(last.get("verse", 1))
-        entry = find_entry(chap, verse) or random.choice(full_index)
-        return reply(entry, entry["full"])            # full audio
+        chap = int(last.get("chapter", 1))
+        vs   = int(last.get("verse",   1))
+        entry = full_lookup.get((chap, vs), random.choice(index))
+        return respond(entry, entry["full"])
 
     elif intent == "NextIntent":
-        chap = int(last.get("chapter", 1)); verse = int(last.get("verse", 1)) + 1
-        nxt = find_entry(chap, verse)
-        if not nxt:                                   # wrap to next chapter
-            chap = chap + 1 if chap < 18 else 1
-            verse = 1
-            nxt = find_entry(chap, verse)
-        entry = nxt or random.choice(full_index)
-        return reply(entry, entry["full"])            # full audio
+        chap = int(last.get("chapter", 1))
+        vs   = int(last.get("verse",   1))
+        entry = next_full(chap, vs)
+        return respond(entry, entry["full"])
 
     else:
         return jsonify({"fulfillmentText": "Sorry, I didn’t understand."})
 
-    # default → quarter (1 or 3)
-    return reply(entry, entry["quarter"])
+    return respond(entry, entry["quarter"])   # default = pada 1/3
 
-
-def reply(entry, audio_url):
+# ── Common response helper ──────────────────────────────────────────────
+def respond(entry, audio_url):
     text = f"Chapter {entry['chapter']}, Verse {entry['verse']}"
     return jsonify({
         "fulfillmentText": text,
@@ -86,8 +84,11 @@ def reply(entry, audio_url):
                     "items": [
                         {"simpleResponse": {"textToSpeech": text}},
                         {"mediaResponse": {
-                            "mediaType": "AUDIO",
-                            "mediaObjects": [{"name": text, "contentUrl": audio_url}]
+                             "mediaType": "AUDIO",
+                             "mediaObjects": [{
+                                 "name": text,
+                                 "contentUrl": audio_url
+                             }]
                         }}
                     ]
                 }
@@ -100,9 +101,6 @@ def reply(entry, audio_url):
         }]
     })
 
-# ----------------------------------------------------------------------
-# Main
-# ----------------------------------------------------------------------
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 8080))
     app.run(host="0.0.0.0", port=port)
