@@ -6,13 +6,11 @@ import json, random, re, os
 app = Flask(__name__)
 CORS(app)
 
-# ----------------------------------------------------------------------
-# Load index and split out quarter/full lists
-# ----------------------------------------------------------------------
+# Load audio index
 with open("gita_audio_index.json", encoding="utf-8") as f:
     full_index = json.load(f)
 
-# Tag each entry with quarter_num (1‑4)
+# Tag quarter part (1 to 4)
 def quarter_num(entry):
     match = re.search(r"\.([1-4])\.mp3$", entry["quarter"])
     return int(match.group(1)) if match else 1
@@ -20,9 +18,10 @@ def quarter_num(entry):
 for e in full_index:
     e["qnum"] = quarter_num(e)
 
+# Only use 1st and 3rd quarter
 quarter_13 = [e for e in full_index if e["qnum"] in (1, 3)]
 
-# Build a dictionary for (chapter, verse) -> full audio (first only)
+# Full shloka map for lookup
 full_only = {}
 for e in full_index:
     key = (e["chapter"], e["verse"])
@@ -32,9 +31,7 @@ for e in full_index:
 def find_entry(ch, vs):
     return full_only.get((ch, vs))
 
-# ----------------------------------------------------------------------
-# Webhook handler
-# ----------------------------------------------------------------------
+# Webhook route
 @app.route("/webhook", methods=["POST"])
 def webhook():
     req = request.get_json(force=True)
@@ -44,11 +41,13 @@ def webhook():
 
     if intent == "ZeroIntent":
         entry = random.choice(quarter_13)
+        return reply(entry, entry["quarter"])
 
     elif intent == "ChapterIntent":
         chap = int(req["queryResult"]["parameters"].get("chapter", 1))
         opts = [e for e in quarter_13 if e["chapter"] == chap] or quarter_13
         entry = random.choice(opts)
+        return reply(entry, entry["quarter"])
 
     elif intent == "FullIntent":
         chap = int(last.get("chapter", 1))
@@ -67,11 +66,9 @@ def webhook():
         entry = nxt or random.choice(full_index)
         return reply(entry, entry["full"])
 
-    else:
-        return jsonify({"fulfillmentText": "Sorry, I didn’t understand."})
+    return jsonify({"fulfillmentText": "Sorry, I didn’t understand."})
 
-    return reply(entry, entry["quarter"])
-
+# Response helper
 def reply(entry, audio_url):
     text = f"Chapter {entry['chapter']}, Verse {entry['verse']}"
     return jsonify({
@@ -83,20 +80,25 @@ def reply(entry, audio_url):
                     "items": [
                         { "simpleResponse": { "textToSpeech": text } },
                         { "mediaResponse": {
-                              "mediaType": "AUDIO",
-                              "mediaObjects": [{ "name": text, "contentUrl": audio_url }]
-                          }}
+                            "mediaType": "AUDIO",
+                            "mediaObjects": [
+                                { "name": text, "contentUrl": audio_url }
+                            ]
+                        }}
                     ]
                 }
             }
         },
-        "outputContexts": [{
-            "name": f"{request.json['session']}/contexts/lastshloka",
-            "lifespanCount": 5,
-            "parameters": {
-                "chapter": entry["chapter"],
-                "verse": entry["verse"]
-            }}]
+        "outputContexts": [
+            {
+                "name": f"{request.json['session']}/contexts/lastshloka",
+                "lifespanCount": 5,
+                "parameters": {
+                    "chapter": entry["chapter"],
+                    "verse": entry["verse"]
+                }
+            }
+        ]
     })
 
 if __name__ == "__main__":
