@@ -1,9 +1,8 @@
 import json
 import re
 from flask import Flask, request, jsonify
-from datetime import datetime
 import random
-import os
+import requests
 
 app = Flask(__name__)
 
@@ -16,8 +15,8 @@ def quarter_num(entry):
     if not isinstance(entry["quarter"], str):
         print(f"Invalid quarter field: {entry['quarter']} for entry {entry}")
         return None
-    match = re.search(r"\.([1-4])\.mp3$", entry["quarter"])
-    return int(match.group(1)) if match else None
+    match = re.search(r"/(\d+)\.([1-4])\.mp3$", entry["quarter"])
+    return int(match.group(2)) if match else None
 
 for e in audio_index:
     e["qnum"] = quarter_num(e)
@@ -36,16 +35,21 @@ def webhook():
         "outputContexts": [],
         "payload": {"google": {"expectUserResponse": True, "richResponse": {"items": []}}}
     }
+    base_url = "https://raw.githubusercontent.com/pubsaroja/bhagavad-gita-bot/main/"
 
     if intent_name == "ZeroIntent":
-        entry = random.choice([e for e in audio_index if e.get("qnum")])
-        chapter, verse = map(int, entry["full"].split('/')[-1].replace('.mp3', '').split('.'))
+        valid_entries = [e for e in audio_index if e.get("qnum") is not None]
+        if not valid_entries:
+            response["fulfillmentText"] = "No valid shlokas available."
+            return jsonify(response)
+        entry = random.choice(valid_entries)
+        chapter, verse = entry["chapter"], entry["verse"]
         response["fulfillmentText"] = f"Playing random shloka {chapter}.{verse}"
         response["payload"]["google"]["richResponse"]["items"].append({
             "mediaResponse": {
                 "mediaType": "AUDIO",
                 "mediaObjects": [{
-                    "contentUrl": f"https://raw.githubusercontent.com/pubsaroja/bhagavad-gita-bot/maintenance/{entry['quarter']}",
+                    "contentUrl": f"{base_url}{entry['quarter']}",
                     "name": f"Shloka {chapter}.{verse}"
                 }]
             }
@@ -60,14 +64,16 @@ def webhook():
         chapter = parameters.get('chapter')
         verse = parameters.get('verse')
         if chapter and verse:
-            entry = next((e for e in audio_index if e["full"].endswith(f"{int(chapter)}.{int(verse)}.mp3")), None)
+            chapter, verse = int(chapter), int(verse)
+            entry = next((e for e in audio_index if e["chapter"] == chapter and e["verse"] == verse and e["qnum"] is not None), None)
             if entry:
+                audio_path = entry['full'] if requests.head(f"{base_url}{entry['full']}").status_code == 200 else entry['quarter']
                 response["fulfillmentText"] = f"Playing full shloka {chapter}.{verse}"
                 response["payload"]["google"]["richResponse"]["items"].append({
                     "mediaResponse": {
                         "mediaType": "AUDIO",
                         "mediaObjects": [{
-                            "contentUrl": f"https://raw.githubusercontent.com/pubsaroja/bhagavad-gita-bot/maintenance/{entry['full']}",
+                            "contentUrl": f"{base_url}{audio_path}",
                             "name": f"Full Shloka {chapter}.{verse}"
                         }]
                     }
@@ -78,24 +84,30 @@ def webhook():
                     "parameters": {"chapter": chapter, "verse": verse}
                 }]
             else:
-                response["fulfillmentText"] = "Full shloka not found."
+                response["fulfillmentText"] = f"Full shloka {chapter}.{verse} not found."
 
     elif intent_name == "NextIntent":
         chapter = parameters.get('chapter')
         verse = parameters.get('verse')
         if chapter and verse:
-            current_entry = next((e for e in audio_index if e["full"].endswith(f"{int(chapter)}.{int(verse)}.mp3")), None)
+            chapter, verse = int(chapter), int(verse)
+            current_entry = next((e for e in audio_index if e["chapter"] == chapter and e["verse"] == verse), None)
             if current_entry:
                 current_idx = audio_index.index(current_entry)
-                next_entry = audio_index[current_idx + 1] if current_idx + 1 < len(audio_index) else None
+                for i in range(current_idx + 1, len(audio_index)):
+                    if audio_index[i]["qnum"] is not None:
+                        next_entry = audio_index[i]
+                        break
+                else:
+                    next_entry = None
                 if next_entry:
-                    next_chapter, next_verse = map(int, next_entry["full"].split('/')[-1].replace('.mp3', '').split('.'))
+                    next_chapter, next_verse = next_entry["chapter"], next_entry["verse"]
                     response["fulfillmentText"] = f"Playing next shloka {next_chapter}.{next_verse}"
                     response["payload"]["google"]["richResponse"]["items"].append({
                         "mediaResponse": {
                             "mediaType": "AUDIO",
                             "mediaObjects": [{
-                                "contentUrl": f"https://raw.githubusercontent.com/pubsaroja/bhagavad-gita-bot/maintenance/{next_entry['quarter']}",
+                                "contentUrl": f"{base_url}{next_entry['quarter']}",
                                 "name": f"Shloka {next_chapter}.{next_verse}"
                             }]
                         }
@@ -108,12 +120,13 @@ def webhook():
                 else:
                     response["fulfillmentText"] = "No next shloka available."
             else:
-                response["fulfillmentText"] = "Current shloka not found."
+                response["fulfillmentText"] = f"Current shloka {chapter}.{verse} not found."
 
     elif intent_name == "ChapterIntent":
         chapter = parameters.get('chapter')
         if chapter:
-            entry = next((e for e in audio_index if e["full"].startswith(f"AudioFull/{int(chapter)}.1")), None)
+            chapter = int(chapter)
+            entry = next((e for e in audio_index if e["chapter"] == chapter and e["verse"] == 1 and e["qnum"] is not None), None)
             if entry:
                 verse = 1
                 response["fulfillmentText"] = f"Playing shloka {chapter}.{verse}"
@@ -121,7 +134,7 @@ def webhook():
                     "mediaResponse": {
                         "mediaType": "AUDIO",
                         "mediaObjects": [{
-                            "contentUrl": f"https://raw.githubusercontent.com/pubsaroja/bhagavad-gita-bot/maintenance/{entry['quarter']}",
+                            "contentUrl": f"{base_url}{entry['quarter']}",
                             "name": f"Shloka {chapter}.{verse}"
                         }]
                     }
