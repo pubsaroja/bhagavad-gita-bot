@@ -3,6 +3,7 @@ from flask_cors import CORS
 import json
 import random
 import os
+import urllib.parse
 
 app = Flask(__name__)
 CORS(app, resources={r"/webhook": {"origins": ["http://localhost:8000", "https://gita-voice-bot-504694669439.us-central1.run.app"]}})
@@ -23,7 +24,9 @@ def get_audio_url(chapter, verse, quarter='all'):
     if key in audio_index:
         audio_path = audio_index[key].get('quarter' if quarter == 'all' else f'quarter_{quarter}', '')
         if audio_path:
-            return AUDIO_BASE_URL + audio_path
+            # URL-encode the audio path to handle spaces and special characters
+            encoded_path = urllib.parse.quote(audio_path)
+            return AUDIO_BASE_URL + encoded_path
     return ''
 
 @app.route('/webhook', methods=['POST', 'OPTIONS'])
