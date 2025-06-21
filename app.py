@@ -6,7 +6,7 @@ import random
 import requests
 
 app = Flask(__name__)
-CORS(app, resources={r"/webhook": {"origins": ["http://localhost:8000"]}})  # Allow localhost:8000
+CORS(app, resources={r"/webhook": {"origins": ["http://localhost:8000"]}})
 
 # Load audio index
 with open('gita_audio_index.json', 'r') as f:
@@ -27,7 +27,7 @@ for e in audio_index:
 @app.route('/webhook', methods=['POST', 'OPTIONS'])
 def webhook():
     if request.method == 'OPTIONS':
-        return jsonify({}), 200  # Handle preflight requests
+        return jsonify({}), 200
     req = request.get_json(silent=True, force=True)
     query_result = req.get('queryResult', {})
     intent_name = query_result.get('intent', {}).get('displayName', '')
@@ -51,11 +51,6 @@ def webhook():
             entry = random.choice(valid_entries)
             chapter, verse = entry["chapter"], entry["verse"]
             quarter_url = f"{base_url}{entry['quarter']}"
-            quarter_response = requests.head(quarter_url)
-            if quarter_response.status_code != 200:
-                print(f"Error: Quarter file not found for {chapter}.{verse}: {quarter_url} (status: {quarter_response.status_code})")
-                response["fulfillmentText"] = "Audio file not found."
-                return jsonify(response)
             print(f"ZeroIntent: Selected shloka {chapter}.{verse}, quarter: {entry['quarter']}")
             response["fulfillmentText"] = f"Playing random shloka {chapter}.{verse}"
             response["payload"]["google"]["richResponse"]["items"].append({
@@ -82,13 +77,6 @@ def webhook():
                 if entry:
                     audio_path = entry['full']
                     audio_url = f"{base_url}{audio_path}"
-                    if requests.head(audio_url).status_code != 200:
-                        audio_path = entry['quarter']
-                        audio_url = f"{base_url}{audio_path}"
-                    if requests.head(audio_url).status_code != 200:
-                        print(f"Error: Audio file not found for {chapter}.{verse}: {audio_url}")
-                        response["fulfillmentText"] = f"Audio for shloka {chapter}.{verse} not found."
-                        return jsonify(response)
                     print(f"FullIntent: Selected shloka {chapter}.{verse}, audio: {audio_path}")
                     response["fulfillmentText"] = f"Playing full shloka {chapter}.{verse}"
                     response["payload"]["google"]["richResponse"]["items"].append({
@@ -108,6 +96,11 @@ def webhook():
                 else:
                     print(f"FullIntent: Shloka {chapter}.{verse} not found")
                     response["fulfillmentText"] = f"Full shloka {chapter}.{verse} not found."
+                    response["outputContexts"] = [{
+                        "name": f"{req['session']}/contexts/shloka-context",
+                        "lifespanCount": 5,
+                        "parameters": {"chapter": chapter, "verse": verse}
+                    }]
 
         elif intent_name == "NextIntent":
             chapter = parameters.get('chapter')
@@ -126,10 +119,6 @@ def webhook():
                     if next_entry:
                         next_chapter, next_verse = next_entry["chapter"], next_entry["verse"]
                         quarter_url = f"{base_url}{next_entry['quarter']}"
-                        if requests.head(quarter_url).status_code != 200:
-                            print(f"Error: Quarter file not found for {next_chapter}.{next_verse}: {quarter_url}")
-                            response["fulfillmentText"] = "Audio file not found."
-                            return jsonify(response)
                         print(f"NextIntent: Selected next shloka {next_chapter}.{next_verse}, quarter: {next_entry['quarter']}")
                         response["fulfillmentText"] = f"Playing next shloka {next_chapter}.{next_verse}"
                         response["payload"]["google"]["richResponse"]["items"].append({
@@ -149,9 +138,19 @@ def webhook():
                     else:
                         print(f"NextIntent: No next shloka available for {chapter}.{verse}")
                         response["fulfillmentText"] = "No next shloka available."
+                        response["outputContexts"] = [{
+                            "name": f"{req['session']}/contexts/shloka-context",
+                            "lifespanCount": 5,
+                            "parameters": {"chapter": chapter, "verse": verse}
+                        }]
                 else:
                     print(f"NextIntent: Current shloka {chapter}.{verse} not found")
                     response["fulfillmentText"] = f"Current shloka {chapter}.{verse} not found."
+                    response["outputContexts"] = [{
+                        "name": f"{req['session']}/contexts/shloka-context",
+                        "lifespanCount": 5,
+                        "parameters": {"chapter": chapter, "verse": verse}
+                    }]
 
         elif intent_name == "ChapterIntent":
             chapter = parameters.get('chapter')
@@ -161,10 +160,6 @@ def webhook():
                 if entry:
                     verse = 1
                     quarter_url = f"{base_url}{entry['quarter']}"
-                    if requests.head(quarter_url).status_code != 200:
-                        print(f"Error: Quarter file not found for {chapter}.{verse}: {quarter_url}")
-                        response["fulfillmentText"] = "Audio file not found."
-                        return jsonify(response)
                     print(f"ChapterIntent: Selected shloka {chapter}.{verse}, quarter: {entry['quarter']}")
                     response["fulfillmentText"] = f"Playing shloka {chapter}.{verse}"
                     response["payload"]["google"]["richResponse"]["items"].append({
@@ -184,6 +179,11 @@ def webhook():
                 else:
                     print(f"ChapterIntent: Chapter {chapter} not found")
                     response["fulfillmentText"] = f"Chapter {chapter} not found."
+                    response["outputContexts"] = [{
+                        "name": f"{req['session']}/contexts/shloka-context",
+                        "lifespanCount": 5,
+                        "parameters": {"chapter": chapter, "verse": 1}
+                    }]
 
         else:
             print(f"Unknown intent: {intent_name}")
