@@ -51,6 +51,11 @@ def webhook():
             entry = random.choice(valid_entries)
             chapter, verse = entry["chapter"], entry["verse"]
             quarter_url = f"{base_url}{entry['quarter']}"
+            quarter_response = requests.head(quarter_url)
+            if quarter_response.status_code != 200:
+                print(f"Error: Quarter file not found for {chapter}.{verse}: {quarter_url} (status: {quarter_response.status_code})")
+                response["fulfillmentText"] = "Audio file not found."
+                return jsonify(response)
             print(f"ZeroIntent: Selected shloka {chapter}.{verse}, quarter: {entry['quarter']}")
             response["fulfillmentText"] = f"Playing random shloka {chapter}.{verse}"
             response["payload"]["google"]["richResponse"]["items"].append({
@@ -77,6 +82,13 @@ def webhook():
                 if entry:
                     audio_path = entry['full']
                     audio_url = f"{base_url}{audio_path}"
+                    if requests.head(audio_url).status_code != 200:
+                        audio_path = entry['quarter']
+                        audio_url = f"{base_url}{audio_path}"
+                    if requests.head(audio_url).status_code != 200:
+                        print(f"Error: Audio file not found for {chapter}.{verse}: {audio_url}")
+                        response["fulfillmentText"] = f"Audio for shloka {chapter}.{verse} not found."
+                        return jsonify(response)
                     print(f"FullIntent: Selected shloka {chapter}.{verse}, audio: {audio_path}")
                     response["fulfillmentText"] = f"Playing full shloka {chapter}.{verse}"
                     response["payload"]["google"]["richResponse"]["items"].append({
@@ -119,6 +131,10 @@ def webhook():
                     if next_entry:
                         next_chapter, next_verse = next_entry["chapter"], next_entry["verse"]
                         quarter_url = f"{base_url}{next_entry['quarter']}"
+                        if requests.head(quarter_url).status_code != 200:
+                            print(f"Error: Quarter file not found for {next_chapter}.{next_verse}: {quarter_url}")
+                            response["fulfillmentText"] = "Audio file not found."
+                            return jsonify(response)
                         print(f"NextIntent: Selected next shloka {next_chapter}.{next_verse}, quarter: {next_entry['quarter']}")
                         response["fulfillmentText"] = f"Playing next shloka {next_chapter}.{next_verse}"
                         response["payload"]["google"]["richResponse"]["items"].append({
@@ -160,6 +176,10 @@ def webhook():
                 if entry:
                     verse = 1
                     quarter_url = f"{base_url}{entry['quarter']}"
+                    if requests.head(quarter_url).status_code != 200:
+                        print(f"Error: Quarter file not found for {chapter}.{verse}: {quarter_url}")
+                        response["fulfillmentText"] = "Audio file not found."
+                        return jsonify(response)
                     print(f"ChapterIntent: Selected shloka {chapter}.{verse}, quarter: {entry['quarter']}")
                     response["fulfillmentText"] = f"Playing shloka {chapter}.{verse}"
                     response["payload"]["google"]["richResponse"]["items"].append({
