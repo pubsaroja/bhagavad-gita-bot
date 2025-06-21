@@ -81,6 +81,7 @@ def webhook():
             entry = random.choice(full_index)
         return reply(entry, entry["full"], session)
 
+    logging.debug(f"Unknown intent: {intent}")
     return jsonify({"fulfillmentText": "Sorry, I didn’t understand."})
 
 # Response helper
