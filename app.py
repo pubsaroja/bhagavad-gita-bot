@@ -7,8 +7,8 @@ import os
 app = Flask(__name__)
 CORS(app, resources={r"/webhook": {"origins": ["http://localhost:8000", "https://gita-voice-bot-504694669439.us-central1.run.app"]}})
 
-# Base URL for audio files (replace with actual URL)
-AUDIO_BASE_URL = "https://your-base-url/"  # Update this
+# Base URL for audio files hosted on GitHub
+AUDIO_BASE_URL = "https://raw.githubusercontent.com/pubsaroja/bhagavad-gita-bot/main/"
 
 # Load audio index
 try:
