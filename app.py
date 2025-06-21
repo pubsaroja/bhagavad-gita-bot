@@ -8,8 +8,12 @@ app = Flask(__name__)
 CORS(app, resources={r"/webhook": {"origins": ["http://localhost:8000", "https://gita-voice-bot-504694669439.us-central1.run.app"]}})
 
 # Load audio index
-with open('gita_audio_index.json', 'r') as f:
-    audio_index = json.load(f)
+try:
+    with open('gita_audio_index.json', 'r') as f:
+        audio_index = json.load(f)
+except FileNotFoundError:
+    print("Error: gita_audio_index.json not found")
+    audio_index = {}
 
 def get_audio_url(chapter, verse, quarter='all'):
     key = f"{chapter}.{verse}"
@@ -33,38 +37,43 @@ def webhook():
     response = {'fulfillmentText': '', 'outputContexts': []}
     
     if intent == 'ZeroIntent':
-        chapter = random.randint(1, 18)
-        verse = random.randint(1, max([int(k.split('.')[1]) for k in audio_index.keys() if k.startswith(f'{chapter}.')]))
-        audio_url = get_audio_url(chapter, verse)
-        if audio_url:
-            response['fulfillmentText'] = f'Playing random shloka {chapter}.{verse}'
-            response['payload'] = {
-                'google': {
-                    'richResponse': {
-                        'items': [{
-                            'mediaResponse': {
-                                'mediaType': 'AUDIO',
-                                'mediaObjects': [{
-                                    'contentUrl': audio_url,
-                                    'name': f'Shloka {chapter}.{verse}'
-                                }]
-                            }
-                        }]
+        if not audio_index:
+            response['fulfillmentText'] = 'Audio index not loaded'
+        else:
+            chapter = random.randint(1, 18)
+            verse = random.randint(1, max([int(k.split('.')[1]) for k in audio_index.keys() if k.startswith(f'{chapter}.')]))
+            audio_url = get_audio_url(chapter, verse)
+            if audio_url:
+                response['fulfillmentText'] = f'Playing random shloka {chapter}.{verse}'
+                response['payload'] = {
+                    'google': {
+                        'richResponse': {
+                            'items': [{
+                                'mediaResponse': {
+                                    'mediaType': 'AUDIO',
+                                    'mediaObjects': [{
+                                        'contentUrl': audio_url,
+                                        'name': f'Shloka {chapter}.{verse}'
+                                    }]
+                                }
+                            }]
+                        }
                     }
                 }
-            }
-            response['outputContexts'] = [{
-                'name': f"{req.get('session')}/contexts/shloka-context",
-                'lifespanCount': 5,
-                'parameters': {'chapter': chapter, 'verse': verse}
-            }]
-        else:
-            response['fulfillmentText'] = 'Audio not found for random shloka'
+                response['outputContexts'] = [{
+                    'name': f"{req.get('session')}/contexts/shloka-context",
+                    'lifespanCount': 5,
+                    'parameters': {'chapter': chapter, 'verse': verse}
+                }]
+            else:
+                response['fulfillmentText'] = 'Audio not found for random shloka'
     
     elif intent == 'ChapterIntent':
         chapter = int(parameters.get('chapter', 0))
         if chapter < 1 or chapter > 18:
             response['fulfillmentText'] = 'Invalid chapter number'
+        elif not audio_index:
+            response['fulfillmentText'] = 'Audio index not loaded'
         else:
             verse = random.randint(1, max([int(k.split('.')[1]) for k in audio_index.keys() if k.startswith(f'{chapter}.')]))
             audio_url = get_audio_url(chapter, verse)
@@ -97,6 +106,8 @@ def webhook():
         context = next((c for c in output_contexts if c.get('name', '').endswith('shloka-context')), None)
         if not context:
             response['fulfillmentText'] = 'Please select a shloka first'
+        elif not audio_index:
+            response['fulfillmentText'] = 'Audio index not loaded'
         else:
             chapter = int(context.get('parameters', {}).get('chapter', 0))
             verse = int(context.get('parameters', {}).get('verse', 0))
@@ -113,23 +124,23 @@ def webhook():
                         'richResponse': {
                             'items': [{
                                 'mediaResponse': {
-                                'mediaType': 'AUDIO',
-                                'mediaObjects': [{
-                                    'contentUrl': audio_url,
-                                    'name': f'Shloka {chapter}.{verse}'
-                                }]
-                            }
-                        }]
+                                    'mediaType': 'AUDIO',
+                                    'mediaObjects': [{
+                                        'contentUrl': audio_url,
+                                        'name': f'Shloka {chapter}.{verse}'
+                                    }]
+                                }
+                            }]
+                        }
                     }
                 }
-            }
-            response['outputContexts'] = [{
-                'name': f"{req.get('session')}/contexts/shloka-context",
-                'lifespanCount': 5,
-                'parameters': {'chapter': chapter, 'verse': verse}
-            }]
-        else:
-            response['fulfillmentText'] = f'No audio found for shloka {chapter}.{verse}'
+                response['outputContexts'] = [{
+                    'name': f"{req.get('session')}/contexts/shloka-context",
+                    'lifespanCount': 5,
+                    'parameters': {'chapter': chapter, 'verse': verse}
+                }]
+            else:
+                response['fulfillmentText'] = f'No audio found for shloka {chapter}.{verse}'
     
     else:
         response['fulfillmentText'] = 'Unknown intent'
@@ -138,4 +149,4 @@ def webhook():
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 8080))
-    app.run(host='0.0.0.0', port=port)
+    app.run(host='0.0.0.0', port=port, debug=True)
