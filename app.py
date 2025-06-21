@@ -1,10 +1,12 @@
 import json
 import re
 from flask import Flask, request, jsonify
+from flask_cors import CORS
 import random
 import requests
 
 app = Flask(__name__)
+CORS(app, resources={r"/webhook": {"origins": ["http://localhost:8000"]}})  # Allow localhost:8000
 
 # Load audio index
 with open('gita_audio_index.json', 'r') as f:
@@ -22,8 +24,10 @@ for e in audio_index:
     e["qnum"] = quarter_num(e)
 
 # Webhook endpoint
-@app.route('/webhook', methods=['POST'])
+@app.route('/webhook', methods=['POST', 'OPTIONS'])
 def webhook():
+    if request.method == 'OPTIONS':
+        return jsonify({}), 200  # Handle preflight requests
     req = request.get_json(silent=True, force=True)
     query_result = req.get('queryResult', {})
     intent_name = query_result.get('intent', {}).get('displayName', '')
@@ -46,7 +50,6 @@ def webhook():
                 return jsonify(response)
             entry = random.choice(valid_entries)
             chapter, verse = entry["chapter"], entry["verse"]
-            # Verify quarter file exists
             quarter_url = f"{base_url}{entry['quarter']}"
             quarter_response = requests.head(quarter_url)
             if quarter_response.status_code != 200:
