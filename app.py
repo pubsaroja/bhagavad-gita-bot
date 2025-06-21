@@ -113,23 +113,23 @@ def webhook():
                         'richResponse': {
                             'items': [{
                                 'mediaResponse': {
-                                    'mediaType': 'AUDIO',
-                                    'mediaObjects': [{
-                                        'contentUrl': audio_url,
-                                        'name': f'Shloka {chapter}.{verse}'
-                                    }]
-                                }
-                            }]
-                        }
+                                'mediaType': 'AUDIO',
+                                'mediaObjects': [{
+                                    'contentUrl': audio_url,
+                                    'name': f'Shloka {chapter}.{verse}'
+                                }]
+                            }
+                        }]
                     }
                 }
-                response['outputContexts'] = [{
-                    'name': f"{req.get('session')}/contexts/shloka-context",
-                    'lifespanCount': 5,
-                    'parameters': {'chapter': chapter, 'verse': verse}
-                }]
-            else:
-                response['fulfillmentText'] = f'No audio found for shloka {chapter}.{verse}'
+            }
+            response['outputContexts'] = [{
+                'name': f"{req.get('session')}/contexts/shloka-context",
+                'lifespanCount': 5,
+                'parameters': {'chapter': chapter, 'verse': verse}
+            }]
+        else:
+            response['fulfillmentText'] = f'No audio found for shloka {chapter}.{verse}'
     
     else:
         response['fulfillmentText'] = 'Unknown intent'
