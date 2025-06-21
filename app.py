@@ -46,46 +46,35 @@ def webhook():
     last = ctx_map.get("lastshloka", {}).get("parameters", {})
 
     # Log request details
-    logging.debug(f"Request: {json.dumps(req, indent=2)}")
-    logging.debug(f"Intent received: '{intent}', Query text: '{query_text}'")
+    logging.debug(f"Full Request: {json.dumps(req, indent=2)}")
+    logging.debug(f"Intent: '{intent}', Query: '{query_text}', Parameters: {json.dumps(parameters)}")
     logging.debug(f"Last Context: {json.dumps(last, indent=2)}")
 
-    # Normalize intent for robustness
-    normalized_intent = intent.lower()
-    if normalized_intent in ["zerointent", "zero"]:
-        normalized_intent = "ZeroIntent"
-    elif normalized_intent in ["fullintent", "full"]:
-        normalized_intent = "FullIntent"
-    elif normalized_intent in ["nextintent", "next"]:
-        normalized_intent = "NextIntent"
-    elif normalized_intent in ["chapterintent", "chapter"]:
-        normalized_intent = "ChapterIntent"
-
-    # Initialize chapter and verse from context or defaults
     current_chapter = int(last.get("chapter", 1))
     current_verse = int(last.get("verse", 1))
 
-    logging.debug(f"Normalized intent: {normalized_intent}")
-
-    if normalized_intent == "ZeroIntent":
+    if intent == "ZeroIntent":
+        logging.debug("Processing ZeroIntent")
         entry = random.choice(quarter_13)
         return reply(entry, entry["quarter"], session)
 
-    elif normalized_intent == "ChapterIntent":
+    elif intent == "ChapterIntent":
+        logging.debug(f"Processing ChapterIntent, chapter: {parameters.get('chapter')}")
         chap = int(parameters.get("chapter", current_chapter))
         opts = [e for e in quarter_13 if e["chapter"] == chap]
         entry = random.choice(opts) if opts else random.choice(quarter_13)
         return reply(entry, entry["quarter"], session)
 
-    elif normalized_intent == "FullIntent":
-        logging.debug(f"FullIntent: Using chapter {current_chapter}, verse {current_verse}")
+    elif intent == "FullIntent":
+        logging.debug(f"Processing FullIntent, chapter: {current_chapter}, verse: {current_verse}")
         entry = find_entry(current_chapter, current_verse)
         if not entry:
             logging.debug("No entry found, falling back to random")
             entry = random.choice(full_index)
         return reply(entry, entry["full"], session)
 
-    elif normalized_intent == "NextIntent":
+    elif intent == "NextIntent":
+        logging.debug(f"Processing NextIntent, current: {current_chapter}.{current_verse}")
         verse = current_verse + 1
         entry = find_entry(current_chapter, verse)
         if not entry:
@@ -96,7 +85,7 @@ def webhook():
             entry = random.choice(full_index)
         return reply(entry, entry["full"], session)
 
-    logging.debug(f"Unknown intent after normalization: {normalized_intent}")
+    logging.debug(f"Unknown intent: {intent}")
     return jsonify({"fulfillmentText": "Sorry, I didn’t understand."})
 
 # Response helper
