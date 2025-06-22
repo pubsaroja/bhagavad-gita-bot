@@ -7,10 +7,10 @@ import urllib.parse
 import logging
 
 app = Flask(__name__)
-CORS(app, resources={r"/webhook": {"origins": ["http://localhost:8000", "https://gita-voice-bot-504694669439.us-central1.run.app", "http://localhost:5000", "*"]}})  # Add localhost:5000 and * for testing
+CORS(app, resources={r"/webhook": {"origins": ["http://localhost:8000", "https://gita-voice-bot-504694669439.us-central1.run.app"]}})
 
 # Setup logging
-logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
+logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 
 # Base URL for audio files hosted on GitHub
@@ -20,7 +20,6 @@ AUDIO_BASE_URL = "https://raw.githubusercontent.com/pubsaroja/bhagavad-gita-bot/
 try:
     with open('gita_audio_index.json', 'r') as f:
         audio_index = json.load(f)
-    logger.debug(f"Loaded audio index with {len(audio_index)} entries")
 except FileNotFoundError:
     logger.error("gita_audio_index.json not found")
     audio_index = {}
@@ -28,6 +27,7 @@ except FileNotFoundError:
 def get_audio_url(chapter, verse, quarter='all'):
     key = f"{chapter}.{verse}"
     if key in audio_index:
+        # Handle 'full' or 'quarter' based on quarter parameter
         field = 'full' if quarter == 'full' else 'quarter'
         audio_path = audio_index[key].get(field, '')
         if audio_path:
@@ -42,7 +42,6 @@ def get_audio_url(chapter, verse, quarter='all'):
 @app.route('/webhook', methods=['POST', 'OPTIONS'])
 def webhook():
     if request.method == 'OPTIONS':
-        logger.debug("Handling OPTIONS request")
         return jsonify({}), 200
     
     req = request.get_json(silent=True)
@@ -50,13 +49,13 @@ def webhook():
         logger.error("Invalid request: No JSON data")
         return jsonify({'fulfillmentText': 'Invalid request'}), 400
 
-    logger.debug(f"Received request: {json.dumps(req, indent=2)}")
+    logger.debug(f"Received request: {req}")
     intent = req.get('queryResult', {}).get('intent', {}).get('displayName', '')
     parameters = req.get('queryResult', {}).get('parameters', {})
     output_contexts = req.get('queryResult', {}).get('outputContexts', [])
 
-    logger.debug(f"Intent: {intent}, Parameters: {parameters}, Contexts: {output_contexts}")
     response = {'fulfillmentText': '', 'outputContexts': []}
+    
     session = req.get('session', 'default-session')
     
     if intent == 'ZeroIntent':
@@ -156,6 +155,7 @@ def webhook():
                 if not verse_keys:
                     response['fulfillmentText'] = f'No verses found for chapter {chapter}'
                     return jsonify(response)
+            # Use 'full' for FullIntent, 'all' (quarter) for NextIntent
             audio_url = get_audio_url(chapter, verse, quarter='full' if intent == 'FullIntent' else 'all')
             if audio_url:
                 response['fulfillmentText'] = f'Playing shloka {chapter}.{verse}'
@@ -185,9 +185,9 @@ def webhook():
     else:
         response['fulfillmentText'] = 'Unknown intent'
 
-    logger.debug(f"Response: {json.dumps(response, indent=2)}")
+    logger.debug(f"Response: {response}")
     return jsonify(response)
 
 if __name__ == '__main__':
-    port = int(os.environ.get('PORT', 5000))  # Revert to 5000 default
+    port = int(os.environ.get('PORT', 8080))
     app.run(host='0.0.0.0', port=port, debug=True)
