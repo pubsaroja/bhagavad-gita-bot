@@ -7,7 +7,7 @@ import urllib.parse
 import logging
 
 app = Flask(__name__)
-CORS(app, resources={r"/webhook": {"origins": ["*"]}})  # Allow all origins for testing
+CORS(app, resources={r"/webhook": {"origins": ["http://localhost:8000", "https://gita-voice-bot-504694669439.us-central1.run.app", "http://localhost:5000", "*"]}})  # Add localhost:5000 and * for testing
 
 # Setup logging
 logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -17,13 +17,12 @@ logger = logging.getLogger(__name__)
 AUDIO_BASE_URL = "https://raw.githubusercontent.com/pubsaroja/bhagavad-gita-bot/main/"
 
 # Load audio index
-json_path = 'C:/Users/pub1965/My Drive (dr.p.udayabhaskar@gmail.com)/Gita/gita_voice_bot_deploy/gita_audio_index.json'
 try:
-    with open(json_path, 'r') as f:
+    with open('gita_audio_index.json', 'r') as f:
         audio_index = json.load(f)
     logger.debug(f"Loaded audio index with {len(audio_index)} entries")
 except FileNotFoundError:
-    logger.error(f"gita_audio_index.json not found at {json_path}")
+    logger.error("gita_audio_index.json not found")
     audio_index = {}
 
 def get_audio_url(chapter, verse, quarter='all'):
@@ -190,4 +189,5 @@ def webhook():
     return jsonify(response)
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000, debug=True)  # Hardcode port 5000
+    port = int(os.environ.get('PORT', 5000))  # Revert to 5000 default
+    app.run(host='0.0.0.0', port=port, debug=True)
