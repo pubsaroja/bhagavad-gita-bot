@@ -9,37 +9,50 @@ import logging
 app = Flask(__name__)
 CORS(app, resources={r"/webhook": {"origins": [
     "http://localhost:8000",
-    "http://localhost:5000",  # Allow local testing
+    "http://localhost:5000",
     "https://gita-voice-bot-504694669439.us-central1.run.app",
-    "https://pubsaroja.github.io"  # Add GitHub Pages origin
+    "https://pubsaroja.github.io"
 ]}})
 
 # Setup logging
 logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
-# Base URL for audio files hosted on GitHub
+# Base URL for audio files
 AUDIO_BASE_URL = "https://raw.githubusercontent.com/pubsaroja/bhagavad-gita-bot/main/"
 
-# Load audio index
+# Load and reformat audio index
 try:
     with open('gita_audio_index.json', 'r') as f:
-        audio_index = json.load(f)
+        audio_list = json.load(f)
+    # Convert list to dictionary: { "chapter.verse": { "full": ..., "pada1": ..., "pada3": ... } }
+    audio_index = {}
+    for entry in audio_list:
+        key = f"{entry['chapter']}.{entry['verse']}"
+        if key not in audio_index:
+            audio_index[key] = {"full": entry.get("full", "")}
+        if entry['quarter_part'] == 1:
+            audio_index[key]["pada1"] = entry.get("quarter", "")
+        elif entry['quarter_part'] == 3:
+            audio_index[key]["pada3"] = entry.get("quarter", "")
     logger.debug(f"Loaded audio index with {len(audio_index)} entries")
 except FileNotFoundError:
     logger.error("gita_audio_index.json not found")
     audio_index = {}
 
-def get_audio_url(chapter, verse, quarter='all'):
+def get_audio_url(chapter, verse, quarter='pada1'):
     key = f"{chapter}.{verse}"
     if key in audio_index:
-        field = 'full' if quarter == 'full' else 'quarter'
+        if quarter == 'full':
+            field = 'full'
+        elif quarter == 'third':
+            field = 'pada3'
+        else:
+            field = 'pada1'
         audio_path = audio_index[key].get(field, '')
         if audio_path:
-            encoded_path = urllib.parse.quote(audio_path)
-            audio_url = AUDIO_BASE_URL + encoded_path
-            logger.debug(f"Generated audio URL for {key}, {field}: {audio_url}")
-            return audio_url
+            logger.debug(f"Generated audio URL for {key}, {field}: {audio_path}")
+            return audio_path
         logger.warning(f"No {field} path found for {key}")
     logger.warning(f"No audio path found for {key}, quarter: {quarter}")
     return ''
@@ -74,9 +87,12 @@ def webhook():
                 response['fulfillmentText'] = f'No verses found for chapter {chapter}'
             else:
                 verse = random.randint(1, max([int(k.split('.')[1]) for k in verse_keys]))
-                audio_url = get_audio_url(chapter, verse)
+                # Randomly choose first or third pada
+                quarter = random.choice(['pada1', 'third'])
+                audio_url = get_audio_url(chapter, verse, quarter=quarter)
                 if audio_url:
-                    response['fulfillmentText'] = f'Playing random shloka {chapter}.{verse}'
+                    pada_name = 'first pada' if quarter == 'pada1' else 'third pada'
+                    response['fulfillmentText'] = f'Playing {pada_name} of shloka {chapter}.{verse}'
                     response['payload'] = {
                         'google': {
                             'richResponse': {
@@ -85,7 +101,7 @@ def webhook():
                                         'mediaType': 'AUDIO',
                                         'mediaObjects': [{
                                             'contentUrl': audio_url,
-                                            'name': f'Shloka {chapter}.{verse}'
+                                            'name': f'Shloka {chapter}.{verse} ({pada_name})'
                                         }]
                                     }
                                 }]
@@ -95,14 +111,15 @@ def webhook():
                     response['outputContexts'] = [{
                         'name': f"{session}/contexts/shloka-context",
                         'lifespanCount': 5,
-                        'parameters': {'chapter': float(chapter), 'verse': float(verse)}
+                        'parameters': {'chapter': float(chapter), 'verse': float(verse), 'quarter': quarter}
                     }]
                 else:
-                    response['fulfillmentText'] = 'Audio not found for random shloka'
+                    response['fulfillmentText'] = f'No audio found for shloka {chapter}.{verse}'
     
     elif intent == 'ChapterIntent':
         chapter = int(parameters.get('chapter', 0))
-        logger.debug(f"ChapterIntent: chapter={chapter}")
+        pada = parameters.get('pada', 'pada1')  # Get pada from parameters
+        logger.debug(f"ChapterIntent: chapter={chapter}, pada={pada}")
         if chapter < 1 or chapter > 18:
             response['fulfillmentText'] = 'Invalid chapter number'
         elif not audio_index:
@@ -113,9 +130,11 @@ def webhook():
                 response['fulfillmentText'] = f'No verses found for chapter {chapter}'
             else:
                 verse = random.randint(1, max([int(k.split('.')[1]) for k in verse_keys]))
-                audio_url = get_audio_url(chapter, verse)
+                quarter = 'third' if pada.lower() == 'third' else 'pada1'
+                audio_url = get_audio_url(chapter, verse, quarter=quarter)
                 if audio_url:
-                    response['fulfillmentText'] = f'Playing shloka {chapter}.{verse} from chapter {chapter}'
+                    pada_name = 'first pada' if quarter == 'pada1' else 'third pada'
+                    response['fulfillmentText'] = f'Playing {pada_name} of shloka {chapter}.{verse} from chapter {chapter}'
                     response['payload'] = {
                         'google': {
                             'richResponse': {
@@ -124,7 +143,7 @@ def webhook():
                                         'mediaType': 'AUDIO',
                                         'mediaObjects': [{
                                             'contentUrl': audio_url,
-                                            'name': f'Shloka {chapter}.{verse}'
+                                            'name': f'Shloka {chapter}.{verse} ({pada_name})'
                                         }]
                                     }
                                 }]
@@ -134,7 +153,7 @@ def webhook():
                     response['outputContexts'] = [{
                         'name': f"{session}/contexts/shloka-context",
                         'lifespanCount': 5,
-                        'parameters': {'chapter': float(chapter), 'verse': float(verse)}
+                        'parameters': {'chapter': float(chapter), 'verse': float(verse), 'quarter': quarter}
                     }]
                 else:
                     response['fulfillmentText'] = f'No audio found for chapter {chapter}'
@@ -150,7 +169,8 @@ def webhook():
         else:
             chapter = int(float(context.get('parameters', {}).get('chapter', 0)))
             verse = int(float(context.get('parameters', {}).get('verse', 0)))
-            logger.debug(f"{intent}: chapter={chapter}, verse={verse}")
+            quarter = context.get('parameters', {}).get('quarter', 'pada1')
+            logger.debug(f"{intent}: chapter={chapter}, verse={verse}, quarter={quarter}")
             if intent == 'NextIntent':
                 verse += 1
                 verse_keys = [k for k in audio_index.keys() if k.startswith(f'{chapter}.')]
@@ -161,9 +181,11 @@ def webhook():
                 if not verse_keys:
                     response['fulfillmentText'] = f'No verses found for chapter {chapter}'
                     return jsonify(response)
-            audio_url = get_audio_url(chapter, verse, quarter='full' if intent == 'FullIntent' else 'all')
+            quarter = 'full' if intent == 'FullIntent' else quarter
+            audio_url = get_audio_url(chapter, verse, quarter=quarter)
             if audio_url:
-                response['fulfillmentText'] = f'Playing shloka {chapter}.{verse}'
+                pada_name = 'full shloka' if quarter == 'full' else ('first pada' if quarter == 'pada1' else 'third pada')
+                response['fulfillmentText'] = f'Playing {pada_name} of shloka {chapter}.{verse}'
                 response['payload'] = {
                     'google': {
                         'richResponse': {
@@ -172,7 +194,7 @@ def webhook():
                                     'mediaType': 'AUDIO',
                                     'mediaObjects': [{
                                         'contentUrl': audio_url,
-                                        'name': f'Shloka {chapter}.{verse}'
+                                        'name': f'Shloka {chapter}.{verse} ({pada_name})'
                                     }]
                                 }
                             }]
@@ -182,7 +204,7 @@ def webhook():
                 response['outputContexts'] = [{
                     'name': f"{session}/contexts/shloka-context",
                     'lifespanCount': 5,
-                    'parameters': {'chapter': float(chapter), 'verse': float(verse)}
+                    'parameters': {'chapter': float(chapter), 'verse': float(verse), 'quarter': quarter}
                 }]
             else:
                 response['fulfillmentText'] = f'No audio found for shloka {chapter}.{verse}'
