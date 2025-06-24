@@ -53,7 +53,7 @@ def get_audio_url(chapter, verse, quarter=None, style=None):
             logger.debug(f"Gurudatta URL: {url}")
             return url
         elif style == 'sringeri':
-            sringeri_path = entry['full'].replace('.mp3', '.mp4').replace('AudioFull', 'AudioFullSringeri')
+            sringeri_path = entry.get('sringeri', entry['full'].replace('AudioFull', 'AudioFullSringeri'))
             url = f"{AUDIO_BASE_URL}{sringeri_path}"
             logger.debug(f"Sringeri URL: {url}")
             return url
@@ -235,7 +235,7 @@ def webhook():
                             }
                         }
                     ]
-                    logger.info(f"Response prepared for next shloka {next_chapter}.{next_verse}, quarter: {current_quarter}")
+                    logger.info(f"Response prepared for next shloka {next_chapter}.{current_verse}, quarter: {current_quarter}")
                 else:
                     response['fulfillmentText'] = f"Sorry, next shloka audio not found for Chapter {next_chapter}, Verse {next_verse}."
                     logger.error(f"Next shloka audio not found for {next_chapter}.{next_verse}, quarter: {current_quarter}")
