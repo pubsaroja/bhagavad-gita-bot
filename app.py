@@ -17,7 +17,7 @@ except FileNotFoundError:
     audio_index = {}
 
 # Base URL for audio files (replace with your bucket URL)
-AUDIO_BASE_URL = "https://storage.googleapis.com/your-audio-bucket/"
+AUDIO_BASE_URL = "https://raw.githubusercontent.com/pubsaroja/bhagavad-gita-bot/main/"
 
 def get_max_verses(chapter):
     """Calculate max verses for a chapter from audio_index."""
