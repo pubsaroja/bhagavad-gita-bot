@@ -2,9 +2,11 @@ import os
 import json
 import random
 from flask import Flask, request, jsonify
+from flask_cors import CORS
 from google.cloud import dialogflow_v2 as dialogflow
 
 app = Flask(__name__)
+CORS(app, resources={r"/webhook": {"origins": "https://pubsaroja.github.io"}})
 
 # Load audio index
 try:
@@ -15,7 +17,7 @@ except FileNotFoundError:
     audio_index = {}
 
 # Base URL for audio files (replace with your bucket URL)
-AUDIO_BASE_URL = "https://raw.githubusercontent.com/pubsaroja/bhagavad-gita-bot/main/"
+AUDIO_BASE_URL = "https://storage.googleapis.com/your-audio-bucket/"
 
 def get_max_verses(chapter):
     """Calculate max verses for a chapter from audio_index."""
@@ -265,4 +267,3 @@ def webhook():
 if __name__ == '__main__':
     print(f"Starting Flask on port {os.environ.get('PORT', 8080)}")
     app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 8080)))
-
