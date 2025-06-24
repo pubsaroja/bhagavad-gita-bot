@@ -4,7 +4,6 @@ import random
 import logging
 from flask import Flask, request, jsonify
 from flask_cors import CORS
-from google.cloud import dialogflow_v2 as dialogflow
 
 app = Flask(__name__)
 CORS(app, resources={r"/webhook": {"origins": "https://pubsaroja.github.io"}})
@@ -22,7 +21,7 @@ except FileNotFoundError:
     logger.error("gita_audio_index.json not found")
     audio_index = {}
 
-# Base URL for audio files (replace with your bucket URL)
+# Base URL for audio files
 AUDIO_BASE_URL = "https://raw.githubusercontent.com/pubsaroja/bhagavad-gita-bot/main/"
 
 def get_max_verses(chapter):
@@ -68,10 +67,16 @@ def webhook():
         logger.debug(f"Request payload: {req}")
         intent_name = req.get('queryResult', {}).get('intent', {}).get('displayName', '')
         parameters = req.get('queryResult', {}).get('parameters', {})
-        session = req.get('session', '')
-        logger.info(f"Processing intent: {intent_name}")
+        session = req.get('session', '') or 'default-session'
+        output_contexts = req.get('queryResult', {}).get('outputContexts', [])
+        logger.info(f"Processing intent: {intent_name}, session: {session}")
 
         response = {'fulfillmentText': 'Processing request...'}
+
+        # Find shloka-context
+        context = next((ctx for ctx in output_contexts if 'shloka-context' in ctx.get('name', '')), None)
+        context_params = context.get('parameters', {}) if context else {}
+        logger.debug(f"Current context: {context_params}")
 
         # Handle ZeroIntent (Get Random Shloka Q1 or Q1/Q3)
         if intent_name == 'ZeroIntent':
@@ -128,10 +133,6 @@ def webhook():
         # Handle FullIntent (Get Full Shloka)
         elif intent_name == 'FullIntent':
             style = parameters.get('style', 'gurudatta')
-            context = next((ctx for ctx in req.get('queryResult', {}).get('outputContexts', []) if 'shloka-context' in ctx.get('name', '')), None)
-            context_params = context.get('parameters', {}) if context else {}
-            logger.debug(f"FullIntent context: {context_params}")
-            
             if not context_params or not context_params.get('chapter') or not context_params.get('verse'):
                 response['fulfillmentText'] = "Please select a shloka first"
                 logger.warning("No shloka-context found")
@@ -167,23 +168,19 @@ def webhook():
                             'name': f"{session}/contexts/shloka-context",
                             'lifespanCount': 5,
                             'parameters': {
-                                'chapter': float(current_chapter),
-                                'verse': float(current_verse),
-                                'style': style
-                            }
+                            'chapter': float(current_chapter),
+                            'verse': float(current_verse),
+                            'style': style
                         }
-                    ]
-                    logger.info(f"Response prepared for full shloka {current_chapter}.{current_verse}, style: {style}")
-                else:
-                    response['fulfillmentText'] = f"Sorry, full shloka audio not found for Chapter {current_chapter}, Verse {current_verse}."
-                    logger.error(f"Full shloka audio not found for {current_chapter}.{current_verse}, style: {style}")
+                    }
+                ]
+                logger.info(f"Response prepared for full shloka {current_chapter}.{current_verse}, style: {style}")
+            else:
+                response['fulfillmentText'] = f"Sorry, full shloka audio not found for Chapter {current_chapter}, Verse {current_verse}."
+                logger.error(f"Full shloka audio not found for {current_chapter}.{current_verse}, style: {style}")
 
         # Handle NextIntent (Get Next Shloka)
         elif intent_name == 'NextIntent':
-            context = next((ctx for ctx in req.get('queryResult', {}).get('outputContexts', []) if 'shloka-context' in ctx.get('name', '')), None)
-            context_params = context.get('parameters', {}) if context else {}
-            logger.debug(f"NextIntent context: {context_params}")
-            
             if not context_params or not context_params.get('chapter') or not context_params.get('verse'):
                 response['fulfillmentText'] = "Please select a shloka first"
                 logger.warning("No shloka-context found")
