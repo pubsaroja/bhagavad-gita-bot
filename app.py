@@ -168,16 +168,16 @@ def webhook():
                             'name': f"{session}/contexts/shloka-context",
                             'lifespanCount': 5,
                             'parameters': {
-                            'chapter': float(current_chapter),
-                            'verse': float(current_verse),
-                            'style': style
+                                'chapter': float(current_chapter),
+                                'verse': float(current_verse),
+                                'style': style
+                            }
                         }
-                    }
-                ]
-                logger.info(f"Response prepared for full shloka {current_chapter}.{current_verse}, style: {style}")
-            else:
-                response['fulfillmentText'] = f"Sorry, full shloka audio not found for Chapter {current_chapter}, Verse {current_verse}."
-                logger.error(f"Full shloka audio not found for {current_chapter}.{current_verse}, style: {style}")
+                    ]
+                    logger.info(f"Response prepared for full shloka {current_chapter}.{current_verse}, style: {style}")
+                else:
+                    response['fulfillmentText'] = f"Sorry, full shloka audio not found for Chapter {current_chapter}, Verse {current_verse}."
+                    logger.error(f"Full shloka audio not found for {current_chapter}.{current_verse}, style: {style}")
 
         # Handle NextIntent (Get Next Shloka)
         elif intent_name == 'NextIntent':
