@@ -1,0 +1,10 @@
+Click SGS (First Paada) to get first quarter of SGS style Shloka audio and Shloka text randomly.
+The Shloka style can be selected through the options Shloka Style.
+Click Sringer (First or Third Paada) to get first quarter or third quarter of Sringeri style Shloka audio and Shloka text randomly.
+Clicking Next Full Shloka button will fetch the next Shloka audio with text.
+Clicking Previous Shloka will fetch the previous Shloka audio with text.
+After getting the First quarter of Third quarter of a shloka, the full shloka can be fetched using the button Full Shloka of Quarter.
+Get the meaning of the text by clicking the Meaning button
+A particular shloka can be fetched by clicking the Select Shloka button.
+A random shloka from a particular chapter can be obtained by selecting the Option button Random Shloka from a Chapter.
+A chapter can be played continuously by selecting the Option Continuous play.
