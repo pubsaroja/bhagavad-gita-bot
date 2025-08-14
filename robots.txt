@@ -1,0 +1,3 @@
+User-agent: *
+Allow: /
+Sitemap: https://pubsaroja.github.io/bhagavad-gita-bot/sitemap.xml
